@@ -146,3 +146,55 @@ class ElasticsearchDataStore(object):
         self.client.bulk(body=self.import_events)
 
     return self.import_counter['events']
+
+  def build_query(self, query_string):
+    """Build Elasticsearch DSL query.
+
+    Args:
+        query_string: Query string
+
+    Returns:
+        Elasticsearch DSL query as a dictionary
+    """
+
+    query_dsl = {
+        'query': {
+            'bool': {
+                'must': [{
+                    'query_string': {
+                        'query': query_string
+                    }
+                }]
+            }
+        }
+    }
+
+    return query_dsl
+
+  def search(self,
+             index_id,
+             query_string):
+    """Search ElasticSearch.
+
+    This will take a query string from the UI together with a filter definition.
+    Based on this it will execute the search request on ElasticSearch and get
+    result back.
+
+    Args:
+        index_id: Index to be searched
+        query_string: Query string
+
+    Returns:
+        Set of event documents in JSON format
+    """
+
+    query_dsl = self.build_query(query_string)
+
+    # Default search type for elasticsearch is query_then_fetch.
+    search_type = 'query_then_fetch'
+
+    return self.client.search(
+        body=query_dsl,
+        index=index_id,
+        size=1000,
+        search_type=search_type)
