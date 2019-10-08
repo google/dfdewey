@@ -15,13 +15,13 @@
 """DFDewey Command-Line Interface."""
 
 import argparse
-import json
 import os
 import subprocess
 import sys
 import tempfile
 
 from datastore.elastic import ElasticsearchDataStore
+from utils import image
 
 
 class _StringRecord(object):
@@ -164,9 +164,15 @@ def main():
     print('Returned {0:d} results:'.format(results['hits']['total']['value']))
     for hit in results['hits']['hits']:
       if hit['_source']['file_offset']:
-        print('Offset: {0:d}\tFile offset:{1:s}\tString: {2:s}'.format(hit['_source']['offset'], hit['_source']['file_offset'], hit['_source']['data'].strip()))
+        print('Offset: {0:d}\tFile offset:{1:s}\tString: {2:s}'.format(
+            hit['_source']['offset'],
+            hit['_source']['file_offset'],
+            hit['_source']['data'].strip()))
       else:
-        print('Offset: {0:d}\tString: {1:s}'.format(hit['_source']['offset'], hit['_source']['data'].strip()))
+        image.get_volume_from_offset(hit['_source']['image'], int(hit['_source']['offset']))
+        print('Offset: {0:d}\tString: {1:s}'.format(
+            hit['_source']['offset'],
+            hit['_source']['data'].strip()))
 
 
 if __name__ == '__main__':
