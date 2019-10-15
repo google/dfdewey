@@ -159,9 +159,9 @@ def get_filename_from_offset(image_file, offset):
     volume = pytsk3.Volume_Info(img)
     for part in volume:
       if part.start <= sector_offset < part.start + part.len:
-        print('Partition {0:d}: {1:s}'.format(
-            part.addr,
-            part.desc.decode('utf-8')))
+        #print('Partition {0:d}: {1:s}'.format(
+            #part.addr,
+            #part.desc.decode('utf-8')))
         partition_offset = part.start
   except IOError:
     pass
