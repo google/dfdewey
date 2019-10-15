@@ -14,15 +14,9 @@
 # limitations under the License.
 """DFDewey Command-Line Interface."""
 
-import argparse
 import datetime
-import os
-import subprocess
-import sys
-import tempfile
 
 from datastore.elastic import ElasticsearchDataStore
-from utils import image
 
 
 class _StringRecord(object):
@@ -32,32 +26,6 @@ class _StringRecord(object):
     self.offset = 0
     self.file_offset = None
     self.data = ''
-
-
-def parse_args():
-  """Argument parsing function.
-
-  Returns:
-      Arguments namespace.
-  """
-  parser = argparse.ArgumentParser()
-
-  # Indexing args
-  parser.add_argument(
-      '--no_base64', help='don\'t decode base64', action='store_true')
-  parser.add_argument(
-      '--no_gzip', help='don\'t process gzip files', action='store_true')
-  parser.add_argument(
-      '--no_zip', help='don\'t process zip files', action='store_true')
-  parser.add_argument('--image_file', help='image file to be processed')
-
-  parser.add_argument('--index_id', help='datastore index ID')
-
-  # Search args
-  parser.add_argument('-s', '--search', help='search query')
-
-  args = parser.parse_args()
-  return args
 
 
 def index_record(es, index_name, event_type, string_record):
@@ -114,73 +82,26 @@ def index_strings(output_path, image_path):
 
         string_record.data = data
         records = index_record(es, index_name, event_type, string_record)
-        if records % 10000000 == 0:
-          print('Indexed {0:d} records...'.format(records))
+        if records % 1000000 == 0:
+          print('Indexed {0:d} records ({1:d}%)...'.format(
+              records, int((records / 61237219)*100)))
 
   records = es.import_event(index_name, event_type)
   print('\n*** Indexing complete.\nIndexed {0:d} strings.'.format(records))
   print(datetime.datetime.now())
-
-
-def search_index(index_id, search_query):
-  """ElasticSearch indexing function.
-
-  Args:
-      index_id (string): The ID of the index to be searched
-      search_query (string): The query to run against the index
-
-  Returns:
-      Search results returned
-  """
-  es = ElasticsearchDataStore()
-  return es.search(index_id, search_query, size=1000)
+  es.delete_index(index_name)
 
 
 def main():
   """Main DFDewey function."""
-  args = parse_args()
-  if args.image_file:
-    image_path = os.path.abspath(args.image_file)
-    output_path = tempfile.mkdtemp()
-
-    cmd = ['bulk_extractor',
-           '-o', output_path,
-           '-x', 'all',
-           '-e', 'strings']
-    if not args.no_base64:
-      cmd.extend(['-e', 'base64'])
-    if not args.no_gzip:
-      cmd.extend(['-e', 'gzip'])
-    if not args.no_zip:
-      cmd.extend(['-e', 'zip'])
-    cmd.extend([image_path])
-    print('\n*** Running bulk extractor:\n{0:s}'.format(' '.join(cmd)))
-    subprocess.run(cmd)
-    index_strings(output_path, image_path)
-  elif args.search:
-    if not args.index_id:
-      print('Index ID is required to search.')
-      sys.exit(-1)
-
-    print('\n*** Searching for \'{0:s}\'...'.format(args.search))
-    results = search_index(args.index_id, args.search)
-    print('Returned {0:d} results:'.format(results['hits']['total']['value']))
-    for hit in results['hits']['hits']:
-      filename = image.get_filename_from_offset(
-          hit['_source']['image'],
-          int(hit['_source']['offset']))
-      if hit['_source']['file_offset']:
-        print('Offset: {0:d}\tFile: {1:s}\tFile offset:{2:s}\t'
-              'String: {3:s}'.format(
-                  hit['_source']['offset'],
-                  filename,
-                  hit['_source']['file_offset'],
-                  hit['_source']['data'].strip()))
-      else:
-        print('Offset: {0:d}\tFile: {1:s}\tString: {2:s}'.format(
-            hit['_source']['offset'],
-            filename,
-            hit['_source']['data'].strip()))
+  index_strings(
+      '/tmp/tmpwb_rc37p',
+      '/usr/local/google/home/jasonsolomon/Downloads/greendale/'
+      'images_acserver.dd')
+  index_strings(
+      '/tmp/tmpg320eoes',
+      '/usr/local/google/home/jasonsolomon/Downloads/greendale/'
+      'images_studentpc10.dd')
 
 
 if __name__ == '__main__':

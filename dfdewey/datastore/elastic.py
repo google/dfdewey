@@ -32,7 +32,7 @@ class ElasticsearchDataStore(object):
   """Implements the datastore."""
 
   # Number of events to queue up when bulk inserting events.
-  DEFAULT_FLUSH_INTERVAL = 1000
+  DEFAULT_FLUSH_INTERVAL = 20000
   DEFAULT_SIZE = 100
   DEFAULT_LIMIT = DEFAULT_SIZE  # Max events to return
   DEFAULT_FROM = 0
@@ -173,7 +173,8 @@ class ElasticsearchDataStore(object):
 
   def search(self,
              index_id,
-             query_string):
+             query_string,
+             size=DEFAULT_SIZE):
     """Search ElasticSearch.
 
     This will take a query string from the UI together with a filter definition.
@@ -183,6 +184,7 @@ class ElasticsearchDataStore(object):
     Args:
         index_id: Index to be searched
         query_string: Query string
+        size: Maximum number of results to return
 
     Returns:
         Set of event documents in JSON format
@@ -196,5 +198,5 @@ class ElasticsearchDataStore(object):
     return self.client.search(
         body=query_dsl,
         index=index_id,
-        size=1000,
+        size=size,
         search_type=search_type)
