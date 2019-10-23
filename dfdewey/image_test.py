@@ -21,8 +21,21 @@ def main():
   filename = image.get_filename_from_offset(
       '/usr/local/google/home/jasonsolomon/Downloads/images/greendale/'
       'images_studentpc10.dd',
-      9426288640)
+      355)
   print(filename)
+  print('===')
+  filename = image.get_filename_from_offset(
+      '/usr/local/google/home/jasonsolomon/Downloads/images/greendale/'
+      'images_studentpc10.dd',
+      5448488236)
+  print(filename)
+  print('===')
+  filename = image.get_filename_from_offset(
+      '/usr/local/google/home/jasonsolomon/Downloads/images/greendale/'
+      'images_acserver.dd',
+      365965982)
+  print(filename)
+  print('===')
 
 
 if __name__ == '__main__':

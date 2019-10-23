@@ -39,24 +39,30 @@ def list_directory(c, directory, part=None, stack=None):
         not hasattr(directory_entry.info, 'name') or
         not hasattr(directory_entry.info.name, 'name') or
         directory_entry.info.meta is None or
-        directory_entry.info.name.name in [b'.', b'..']):
+        directory_entry.info.name.name in [b'.', b'..'] or
+        directory_entry.info.name.flags == pytsk3.TSK_FS_NAME_FLAG_UNALLOC):
+      continue
+    try:
+      name = directory_entry.info.name.name.decode('utf-8')
+    except UnicodeDecodeError:
+      print('Unable to decode: {}'.format(directory_entry.info.name.name))
       continue
     if part:
       c.execute('INSERT INTO files VALUES ({0:d}, "{1:s}", {2:d})'.format(
           directory_entry.info.meta.addr,
-          directory_entry.info.name.name.decode('utf-8'),
+          name,
           part))
     else:
       c.execute('INSERT INTO files VALUES ({0:d}, "{1:s}", NULL)'.format(
           directory_entry.info.meta.addr,
-          directory_entry.info.name.name.decode('utf-8')))
+          name))
 
     try:
       sub_directory = directory_entry.as_directory()
       inode = directory_entry.info.meta.addr
 
       if inode not in stack:
-        list_directory(c, sub_directory, stack=stack)
+        list_directory(c, sub_directory, part=part, stack=stack)
 
     except IOError:
       pass
@@ -87,7 +93,7 @@ def populate_block_db(img, c):
       if part.flags != pytsk3.TSK_VS_PART_FLAG_ALLOC:
         continue
       fs = pytsk3.FS_Info(img, offset=part.start * 512)
-      for i in range(fs.info.last_inum + 1):
+      for i in range(fs.info.first_inum, fs.info.last_inum + 1):
         f = fs.open_meta(i)
         for attr in f:
           for run in attr:
@@ -104,7 +110,7 @@ def populate_block_db(img, c):
 
   if not has_partition_table:
     fs = pytsk3.FS_Info(img)
-    for i in range(fs.info.last_inum + 1):
+    for i in range(fs.info.first_inum, fs.info.last_inum + 1):
       f = fs.open_meta(i)
       for attr in f:
         for run in attr:
@@ -194,36 +200,42 @@ def get_filename_from_offset(image_file, offset):
 
   partition = None
   partition_offset = None
+  unalloc_part = False
   try:
     volume = pytsk3.Volume_Info(img)
     for part in volume:
       if part.start <= sector_offset < part.start + part.len:
+        if part.flags != pytsk3.TSK_VS_PART_FLAG_ALLOC:
+          unalloc_part = True
         partition = part.addr
         partition_offset = part.start
   except IOError:
     pass
 
-  try:
-    if not partition_offset:
-      fs = pytsk3.FS_Info(img)
-    else:
-      offset -= partition_offset * 512
-      fs = pytsk3.FS_Info(img, offset=partition_offset * 512)
-  except TypeError as e:
-    print(e)
-  block_size = fs.info.block_size
+  inum = None
+  if not unalloc_part:
+    try:
+      if not partition_offset:
+        fs = pytsk3.FS_Info(img)
+      else:
+        offset -= partition_offset * 512
+        fs = pytsk3.FS_Info(img, offset=partition_offset * 512)
+    except TypeError as e:
+      print(e)
+    block_size = fs.info.block_size
 
-  if (offset / block_size) > fs.info.last_block:
-    print('Offset is larger than file system extents...')
-    img.close()
-    sys.exit(-1)
+    if (offset / block_size) > fs.info.last_block:
+      print('Offset is larger than file system extents...')
+      img.close()
+      sys.exit(-1)
 
-  if (offset / block_size) < fs.info.first_block:
-    print('Offset is smaller than file system extents...')
-    img.close()
-    sys.exit(-1)
+    if (offset / block_size) < fs.info.first_block:
+      print('Offset is smaller than file system extents...')
+      img.close()
+      sys.exit(-1)
 
-  inum = get_inum(c, offset / block_size, part=partition)
+    inum = get_inum(c, offset / block_size, part=partition)
+
   filename = None
   if inum:
     filename = get_filename(c, inum, part=partition)
