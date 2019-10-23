@@ -55,6 +55,8 @@ def parse_args():
 
   # Search args
   parser.add_argument('-s', '--search', help='search query')
+  parser.add_argument(
+      '-f', '--file_lookup', help='enable file lookups', action='store_true')
 
   args = parser.parse_args()
   return args
@@ -165,10 +167,12 @@ def main():
     print('\n*** Searching for \'{0:s}\'...'.format(args.search))
     results = search_index(args.index_id, args.search)
     print('Returned {0:d} results:'.format(results['hits']['total']['value']))
+    filename = '*Disabled*'
     for hit in results['hits']['hits']:
-      filename = image.get_filename_from_offset(
-          hit['_source']['image'],
-          int(hit['_source']['offset']))
+      if args.file_lookup:
+        filename = image.get_filename_from_offset(
+            hit['_source']['image'],
+            int(hit['_source']['offset']))
       if hit['_source']['file_offset']:
         print('Offset: {0:d}\tFile: {1:s}\tFile offset:{2:s}\t'
               'String: {3:s}'.format(
