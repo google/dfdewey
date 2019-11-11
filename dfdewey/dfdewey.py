@@ -96,7 +96,7 @@ def index_strings(output_path, image_path):
   index_name, event_type = es.create_index()
   print('Index {0:s} created.'.format(index_name))
 
-  with open('/'.join((output_path, 'strings.txt')), 'r') as strings:
+  with open('/'.join((output_path, 'wordlist.txt')), 'r') as strings:
     for line in strings:
       if line[0] != '#':
         string_record = _StringRecord()
@@ -148,13 +148,16 @@ def main():
     cmd = ['bulk_extractor',
            '-o', output_path,
            '-x', 'all',
-           '-e', 'strings']
+           '-e', 'wordlist']
+
     if not args.no_base64:
       cmd.extend(['-e', 'base64'])
     if not args.no_gzip:
       cmd.extend(['-e', 'gzip'])
     if not args.no_zip:
       cmd.extend(['-e', 'zip'])
+
+    cmd.extend(['-S', 'strings=YES', '-S', 'word_max=1000000'])
     cmd.extend([image_path])
     print('\n*** Running bulk extractor:\n{0:s}'.format(' '.join(cmd)))
     subprocess.run(cmd)

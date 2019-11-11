@@ -3,6 +3,9 @@
 # Back-up files
 *~
 
+# IDE files
+.idea
+
 # Generic auto-generated build files
 *.pyc
 *.pyo
