@@ -14,11 +14,10 @@
 """Image File Access Functions."""
 
 import hashlib
-import os
 import sys
 
+import psycopg2
 import pytsk3
-import sqlite3
 
 
 def list_directory(c, directory, part=None, stack=None):
@@ -48,12 +47,12 @@ def list_directory(c, directory, part=None, stack=None):
       print('Unable to decode: {}'.format(directory_entry.info.name.name))
       continue
     if part:
-      c.execute('INSERT INTO files VALUES ({0:d}, "{1:s}", {2:d})'.format(
+      c.execute('INSERT INTO files VALUES ({0:d}, \'{1:s}\', {2:d})'.format(
           directory_entry.info.meta.addr,
           name,
           part))
     else:
-      c.execute('INSERT INTO files VALUES ({0:d}, "{1:s}", NULL)'.format(
+      c.execute('INSERT INTO files VALUES ({0:d}, \'{1:s}\', NULL)'.format(
           directory_entry.info.meta.addr,
           name))
 
@@ -95,12 +94,13 @@ def populate_block_db(img, c):
       fs = pytsk3.FS_Info(img, offset=part.start * 512)
       for i in range(fs.info.first_inum, fs.info.last_inum + 1):
         f = fs.open_meta(i)
-        for attr in f:
-          for run in attr:
-            for j in range(run.len):
-              c.execute('INSERT INTO blocks VALUES '
-                        '({0:d}, {1:d}, {2:d})'.format(
-                            run.addr + j, i, part.addr))
+        if f.info.meta.nlink > 0:
+          for attr in f:
+            for run in attr:
+              for j in range(run.len):
+                c.execute('INSERT INTO blocks VALUES '
+                          '({0:d}, {1:d}, {2:d})'.format(
+                              run.addr + j, i, part.addr))
 
       # File names
       directory = fs.open_dir(path='/')
@@ -124,7 +124,7 @@ def populate_block_db(img, c):
     list_directory(c, directory)
 
 
-def get_inum(c, block, part=None):
+def get_inums(c, block, part=None):
   """Gets inode number from block offset.
 
   Args:
@@ -133,7 +133,7 @@ def get_inum(c, block, part=None):
       part: Partition number
 
   Returns:
-      Inode number of the given block or None
+      Inode number(s) of the given block or None
   """
   if part:
     c.execute('SELECT inum FROM blocks '
@@ -142,12 +142,8 @@ def get_inum(c, block, part=None):
   else:
     c.execute('SELECT inum FROM blocks WHERE block = {0:d}'.format(int(block)))
   inums = c.fetchall()
-  if inums:
-    inum = inums[0][0]
-  else:
-    inum = None
 
-  return inum
+  return inums
 
 
 def get_filename(c, inum, part=None):
@@ -171,7 +167,7 @@ def get_filename(c, inum, part=None):
   if filenames:
     filename = filenames[0][0]
   else:
-    filename = None
+    filename = '*None*'
 
   return filename
 
@@ -189,14 +185,42 @@ def get_filename_from_offset(image_file, offset):
   sector_offset = offset / 512
   img = pytsk3.Img_Info(image_file)
 
-  db_name = ''.join((
-      '/tmp/',
-      hashlib.md5(image_file.encode('utf-8')).hexdigest()))
-  db_exists = os.path.exists(db_name)
-  inum_db = sqlite3.connect(db_name)
+  db_name = ''.join(
+      ('fs', hashlib.md5(image_file.encode('utf-8')).hexdigest()))
+  inum_db = psycopg2.connect(
+      user='dfdewey',
+      password='password',
+      host='127.0.0.1',
+      port=5432)
+  inum_db.set_isolation_level(psycopg2.extensions.ISOLATION_LEVEL_AUTOCOMMIT)
   c = inum_db.cursor()
+  c.execute(
+      'SELECT 1 FROM pg_catalog.pg_database '
+      'WHERE datname = \'{0:s}\''.format(db_name))
+  db_exists = c.fetchone()
   if not db_exists:
+    c.execute('CREATE DATABASE {0:s}'.format(db_name))
+    inum_db.close()
+
+    inum_db = psycopg2.connect(
+        database=db_name,
+        user='dfdewey',
+        password='password',
+        host='127.0.0.1',
+        port=5432)
+    c = inum_db.cursor()
+
     populate_block_db(img, c)
+  else:
+    inum_db.close()
+
+    inum_db = psycopg2.connect(
+        database=db_name,
+        user='dfdewey',
+        password='password',
+        host='127.0.0.1',
+        port=5432)
+    c = inum_db.cursor()
 
   partition = None
   partition_offset = None
@@ -212,7 +236,6 @@ def get_filename_from_offset(image_file, offset):
   except IOError:
     pass
 
-  inum = None
   if not unalloc_part:
     try:
       if not partition_offset:
@@ -234,16 +257,21 @@ def get_filename_from_offset(image_file, offset):
       img.close()
       sys.exit(-1)
 
-    inum = get_inum(c, offset / block_size, part=partition)
+    inums = get_inums(c, offset / block_size, part=partition)
 
-  filename = None
-  if inum:
-    filename = get_filename(c, inum, part=partition)
+  filenames = None
+  for i in inums:
+    filename = get_filename(c, i[0], part=partition)
+    if filename and not filenames:
+      filenames = '{0:s} ({1:d})'.format(filename, i[0])
+    else:
+      filenames = ' | '.join(
+          (filenames, '{0:s} ({1:d})'.format(filename, i[0])))
 
   inum_db.commit()
   inum_db.close()
 
-  if filename is None:
+  if filenames is None:
     return '*None*'
   else:
-    return '{0:s} ({1:d})'.format(filename, inum)
+    return filenames
