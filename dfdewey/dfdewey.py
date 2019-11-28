@@ -162,6 +162,7 @@ def main():
     print('\n*** Running bulk extractor:\n{0:s}'.format(' '.join(cmd)))
     subprocess.run(cmd)
     index_strings(output_path, image_path)
+    image.initialise_block_db(image_path)
   elif args.search:
     if not args.index_id:
       print('Index ID is required to search.')

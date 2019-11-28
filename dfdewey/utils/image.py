@@ -69,6 +69,41 @@ def list_directory(c, directory, part=None, stack=None):
   stack.pop(-1)
 
 
+def initialise_block_db(image_path):
+  """Creates a new image database.
+
+  Args:
+      image_path: path to image file
+  """
+  img = pytsk3.Img_Info(image_path)
+
+  db_name = ''.join(
+      ('fs', hashlib.md5(image_path.encode('utf-8')).hexdigest()))
+  inum_db = psycopg2.connect(
+      user='dfdewey',
+      password='password',
+      host='127.0.0.1',
+      port=5432)
+  inum_db.set_isolation_level(psycopg2.extensions.ISOLATION_LEVEL_AUTOCOMMIT)
+  c = inum_db.cursor()
+
+  c.execute('CREATE DATABASE {0:s}'.format(db_name))
+  inum_db.close()
+
+  inum_db = psycopg2.connect(
+      database=db_name,
+      user='dfdewey',
+      password='password',
+      host='127.0.0.1',
+      port=5432)
+  c = inum_db.cursor()
+
+  populate_block_db(img, c)
+
+  inum_db.commit()
+  inum_db.close()
+
+
 def populate_block_db(img, c):
   """Creates a new image database.
 
@@ -76,7 +111,7 @@ def populate_block_db(img, c):
       img: pytsk image info object
       c: sqlite database cursor
   """
-  print('Image database does not already exist. Parsing image...')
+  print('Image database does not already exist. Parsing image filesystem(s)...')
   c.execute('CREATE TABLE blocks (block INTEGER, inum INTEGER, part INTEGER)')
   c.execute('CREATE TABLE files (inum INTEGER, filename TEXT, part INTEGER)')
 
