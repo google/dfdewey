@@ -16,6 +16,7 @@
 
 import argparse
 import datetime
+import hashlib
 import os
 import subprocess
 import sys
@@ -93,7 +94,9 @@ def index_strings(output_path, image_path):
   print('\n*** Indexing data...')
   print(datetime.datetime.now())
   es = ElasticsearchDataStore()
-  index_name, event_type = es.create_index()
+  index_name = ''.join(
+      ('es', hashlib.md5(image_path.encode('utf-8')).hexdigest()))
+  index_name, event_type = es.create_index(index_name=index_name)
   print('Index {0:s} created.'.format(index_name))
 
   with open('/'.join((output_path, 'wordlist.txt')), 'r') as strings:

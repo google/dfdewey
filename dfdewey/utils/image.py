@@ -14,7 +14,6 @@
 """Image File Access Functions."""
 
 import hashlib
-import sys
 
 import psycopg2
 import pytsk3
@@ -47,14 +46,11 @@ def list_directory(c, directory, part=None, stack=None):
       print('Unable to decode: {}'.format(directory_entry.info.name.name))
       continue
     if part:
-      c.execute('INSERT INTO files VALUES ({0:d}, \'{1:s}\', {2:d})'.format(
-          directory_entry.info.meta.addr,
-          name,
-          part))
+      c.execute('INSERT INTO files VALUES (%d, \'%s\', %d)' %
+                (directory_entry.info.meta.addr, name, part))
     else:
-      c.execute('INSERT INTO files VALUES ({0:d}, \'{1:s}\', NULL)'.format(
-          directory_entry.info.meta.addr,
-          name))
+      c.execute('INSERT INTO files VALUES (%d, \'%s\', NULL)' %
+                (directory_entry.info.meta.addr, name))
 
     try:
       sub_directory = directory_entry.as_directory()
@@ -133,9 +129,8 @@ def populate_block_db(img, c):
           for attr in f:
             for run in attr:
               for j in range(run.len):
-                c.execute('INSERT INTO blocks VALUES '
-                          '({0:d}, {1:d}, {2:d})'.format(
-                              run.addr + j, i, part.addr))
+                c.execute('INSERT INTO blocks VALUES (%d, %d, %d)' %
+                          (run.addr + j, i, part.addr))
 
       # File names
       directory = fs.open_dir(path='/')
@@ -150,9 +145,8 @@ def populate_block_db(img, c):
       for attr in f:
         for run in attr:
           for j in range(run.len):
-            c.execute('INSERT INTO blocks VALUES '
-                      '({0:d}, {1:d}, NULL)'.format(
-                          run.addr + j, i))
+            c.execute('INSERT INTO blocks VALUES (%d, %d, NULL)' %
+                      (run.addr + j, i))
 
     # File names
     directory = fs.open_dir(path='/')
@@ -281,16 +275,6 @@ def get_filename_from_offset(image_file, offset):
     except TypeError as e:
       print(e)
     block_size = fs.info.block_size
-
-    if (offset / block_size) > fs.info.last_block:
-      print('Offset is larger than file system extents...')
-      img.close()
-      sys.exit(-1)
-
-    if (offset / block_size) < fs.info.first_block:
-      print('Offset is smaller than file system extents...')
-      img.close()
-      sys.exit(-1)
 
     inums = get_inums(c, offset / block_size, part=partition)
 
