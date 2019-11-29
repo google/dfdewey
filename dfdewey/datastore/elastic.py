@@ -19,7 +19,7 @@ import logging
 import uuid
 
 from elasticsearch import Elasticsearch
-from elasticsearch.exceptions import ConnectionError
+from elasticsearch import exceptions
 import six
 
 # Setup logging
@@ -60,7 +60,7 @@ class ElasticsearchDataStore(object):
     if not self.client.indices.exists(index_name):
       try:
         self.client.indices.create(index=index_name)
-      except ConnectionError:
+      except exceptions.ConnectionError:
         raise RuntimeError('Unable to connect to backend datastore.')
 
     if not isinstance(index_name, six.text_type):
@@ -79,7 +79,7 @@ class ElasticsearchDataStore(object):
     if self.client.indices.exists(index_name):
       try:
         self.client.indices.delete(index=index_name)
-      except ConnectionError as e:
+      except exceptions.ConnectionError as e:
         raise RuntimeError(
             'Unable to connect to backend datastore: {}'.format(e)
         )

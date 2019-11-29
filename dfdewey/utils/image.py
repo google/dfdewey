@@ -47,10 +47,13 @@ def list_directory(c, directory, part=None, stack=None):
       continue
     if part:
       c.execute('INSERT INTO files VALUES (%d, \'%s\', %d)' %
-                (directory_entry.info.meta.addr, name, part))
+                (directory_entry.info.meta.addr,
+                 name.replace('\'', '\'\''),
+                 part,))
     else:
       c.execute('INSERT INTO files VALUES (%d, \'%s\', NULL)' %
-                (directory_entry.info.meta.addr, name))
+                (directory_entry.info.meta.addr,
+                 name.replace('\'', '\'\''),))
 
     try:
       sub_directory = directory_entry.as_directory()
@@ -130,7 +133,7 @@ def populate_block_db(img, c):
             for run in attr:
               for j in range(run.len):
                 c.execute('INSERT INTO blocks VALUES (%d, %d, %d)' %
-                          (run.addr + j, i, part.addr))
+                          (run.addr + j, i, part.addr,))
 
       # File names
       directory = fs.open_dir(path='/')
@@ -146,7 +149,7 @@ def populate_block_db(img, c):
         for run in attr:
           for j in range(run.len):
             c.execute('INSERT INTO blocks VALUES (%d, %d, NULL)' %
-                      (run.addr + j, i))
+                      (run.addr + j, i,))
 
     # File names
     directory = fs.open_dir(path='/')
