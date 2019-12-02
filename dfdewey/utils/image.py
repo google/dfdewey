@@ -145,11 +145,12 @@ def populate_block_db(img, c):
     fs = pytsk3.FS_Info(img)
     for i in range(fs.info.first_inum, fs.info.last_inum + 1):
       f = fs.open_meta(i)
-      for attr in f:
-        for run in attr:
-          for j in range(run.len):
-            c.execute('INSERT INTO blocks VALUES (%d, %d, NULL)' %
-                      (run.addr + j, i,))
+      if f.info.meta.nlink > 0:
+        for attr in f:
+          for run in attr:
+            for j in range(run.len):
+              c.execute('INSERT INTO blocks VALUES (%d, %d, NULL)' %
+                        (run.addr + j, i,))
 
     # File names
     directory = fs.open_dir(path='/')
@@ -202,6 +203,32 @@ def get_filename(c, inum, part=None):
     filename = '*None*'
 
   return filename
+
+
+def get_resident_inum(offset, fs):
+  """Gets filename given an inode number.
+
+  Args:
+      offset: data offset within volume
+      fs: pytsk3 FS_INFO object
+
+  Returns:
+      inode number of resident data
+  """
+  block_size = fs.info.block_size
+  block = int(offset / block_size)
+
+  f = fs.open_meta(0)
+  mft_entry = 0
+  for attr in f:
+    for run in attr:
+      for j in range(run.len):
+        if run.addr + j == block:
+          mft_entry += int((offset - (block * block_size)) / 1024)
+          return mft_entry
+        else:
+          mft_entry += int(block_size / 1024)
+  return 0
 
 
 def get_filename_from_offset(image_file, offset):
@@ -283,12 +310,15 @@ def get_filename_from_offset(image_file, offset):
 
   filenames = None
   for i in inums:
-    filename = get_filename(c, i[0], part=partition)
+    real_inum = i[0]
+    if i[0] == 0 and fs.info.ftype == pytsk3.TSK_FS_TYPE_NTFS_DETECT:
+      real_inum = get_resident_inum(offset, fs)
+    filename = get_filename(c, real_inum, part=partition)
     if filename and not filenames:
-      filenames = '{0:s} ({1:d})'.format(filename, i[0])
+      filenames = '{0:s} ({1:d})'.format(filename, real_inum)
     else:
       filenames = ' | '.join(
-          (filenames, '{0:s} ({1:d})'.format(filename, i[0])))
+          (filenames, '{0:s} ({1:d})'.format(filename, real_inum)))
 
   inum_db.commit()
   inum_db.close()
