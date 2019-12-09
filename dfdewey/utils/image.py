@@ -16,10 +16,12 @@
 import hashlib
 
 import psycopg2
+from psycopg2 import extras
 import pytsk3
 
 
-def list_directory(c, directory, part=None, stack=None):
+def list_directory(
+    c, directory, part=None, stack=None, rows=None, batch_size=1):
   """Recursive function to create a filesystem listing.
 
   Args:
@@ -27,9 +29,16 @@ def list_directory(c, directory, part=None, stack=None):
       directory: pytsk directory object
       part: partition number
       stack: Inode stack to control recursive filesystem parsing
+      rows: Array for batch database inserts
+      batch_size: number of rows to insert at a time
+
+  Returns:
+      Current rows array for recursion
   """
   if not stack:
     stack = []
+  if not rows:
+    rows = []
   stack.append(directory.info.fs_file.meta.addr)
 
   for directory_entry in directory:
@@ -46,26 +55,53 @@ def list_directory(c, directory, part=None, stack=None):
       print('Unable to decode: {}'.format(directory_entry.info.name.name))
       continue
     if part:
-      c.execute('INSERT INTO files VALUES (%d, \'%s\', %d)' %
-                (directory_entry.info.meta.addr,
-                 name.replace('\'', '\'\''),
-                 part,))
+      rows.append((directory_entry.info.meta.addr,
+                   name.replace('\'', '\'\''),
+                   part,))
+      if len(rows) >= batch_size:
+        extras.execute_values(
+            c,
+            'INSERT INTO files (inum, filename, part) VALUES %s',
+            rows)
+        rows = []
     else:
-      c.execute('INSERT INTO files VALUES (%d, \'%s\', NULL)' %
-                (directory_entry.info.meta.addr,
-                 name.replace('\'', '\'\''),))
+      rows.append((directory_entry.info.meta.addr,
+                   name.replace('\'', '\'\''),))
+      if len(rows) >= batch_size:
+        extras.execute_values(
+            c,
+            'INSERT INTO files (inum, filename) VALUES %s',
+            rows)
+        rows = []
 
     try:
       sub_directory = directory_entry.as_directory()
       inode = directory_entry.info.meta.addr
 
       if inode not in stack:
-        list_directory(c, sub_directory, part=part, stack=stack)
+        rows = list_directory(
+            c,
+            sub_directory,
+            part=part,
+            stack=stack,
+            rows=rows)
 
     except IOError:
       pass
 
   stack.pop(-1)
+  if not stack:
+    if part:
+      extras.execute_values(
+          c,
+          'INSERT INTO files (inum, filename, part) VALUES %s',
+          rows)
+    else:
+      extras.execute_values(
+          c,
+          'INSERT INTO files (inum, filename) VALUES %s',
+          rows)
+  return rows
 
 
 def initialise_block_db(image_path):
@@ -103,12 +139,13 @@ def initialise_block_db(image_path):
   inum_db.close()
 
 
-def populate_block_db(img, c):
+def populate_block_db(img, c, batch_size=1):
   """Creates a new image database.
 
   Args:
       img: pytsk image info object
       c: sqlite database cursor
+      batch_size: number of rows to insert at a time
   """
   print('Image database does not already exist. Parsing image filesystem(s)...')
   c.execute('CREATE TABLE blocks (block INTEGER, inum INTEGER, part INTEGER)')
@@ -120,6 +157,7 @@ def populate_block_db(img, c):
     if volume:
       print('Image has a partition table...')
       has_partition_table = True
+    rows = []
     for part in volume:
       print('Parsing partition {0:d}: {1:s}'.format(
           part.addr, part.desc.decode('utf-8')))
@@ -132,8 +170,18 @@ def populate_block_db(img, c):
           for attr in f:
             for run in attr:
               for j in range(run.len):
-                c.execute('INSERT INTO blocks VALUES (%d, %d, %d)' %
-                          (run.addr + j, i, part.addr,))
+                rows.append((run.addr + j, i, part.addr,))
+                if len(rows) >= batch_size:
+                  extras.execute_values(
+                      c,
+                      'INSERT INTO blocks (block, inum, part) VALUES %s',
+                      rows)
+                  rows = []
+      if rows:
+        extras.execute_values(
+            c,
+            'INSERT INTO blocks (block, inum, part) VALUES %s',
+            rows)
 
       # File names
       directory = fs.open_dir(path='/')
@@ -143,14 +191,25 @@ def populate_block_db(img, c):
 
   if not has_partition_table:
     fs = pytsk3.FS_Info(img)
+    rows = []
     for i in range(fs.info.first_inum, fs.info.last_inum + 1):
       f = fs.open_meta(i)
       if f.info.meta.nlink > 0:
         for attr in f:
           for run in attr:
             for j in range(run.len):
-              c.execute('INSERT INTO blocks VALUES (%d, %d, NULL)' %
-                        (run.addr + j, i,))
+              rows.append((run.addr + j, i,))
+              if len(rows) >= batch_size:
+                extras.execute_values(
+                    c,
+                    'INSERT INTO blocks (block, inum) VALUES %s',
+                    rows)
+                rows = []
+      if rows:
+        extras.execute_values(
+            c,
+            'INSERT INTO blocks (block, inum) VALUES %s',
+            rows)
 
     # File names
     directory = fs.open_dir(path='/')

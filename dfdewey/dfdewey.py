@@ -50,9 +50,11 @@ def parse_args():
       '--no_gzip', help='don\'t process gzip files', action='store_true')
   parser.add_argument(
       '--no_zip', help='don\'t process zip files', action='store_true')
-  parser.add_argument('--image_file', help='image file to be processed')
+  parser.add_argument('--image', help='image file to be processed')
 
-  parser.add_argument('--index_id', help='datastore index ID')
+  parser.add_argument('--index', help='datastore index ID')
+
+  parser.add_argument('-p', '--parse', help='image file to parse')
 
   # Search args
   parser.add_argument('-s', '--search', help='search query')
@@ -144,8 +146,8 @@ def search_index(index_id, search_query):
 def main():
   """Main DFDewey function."""
   args = parse_args()
-  if args.image_file:
-    image_path = os.path.abspath(args.image_file)
+  if args.image:
+    image_path = os.path.abspath(args.image)
     output_path = tempfile.mkdtemp()
 
     cmd = ['bulk_extractor',
@@ -166,6 +168,8 @@ def main():
     subprocess.run(cmd)
     index_strings(output_path, image_path)
     image.initialise_block_db(image_path)
+    print('Processing complete!')
+    print(datetime.datetime.now())
   elif args.search:
     if not args.index_id:
       print('Index ID is required to search.')
@@ -192,6 +196,15 @@ def main():
             hit['_source']['offset'],
             filename,
             hit['_source']['data'].strip()))
+  elif args.parse:
+    start_time = datetime.datetime.now()
+    image_path = os.path.abspath(args.parse)
+    image.initialise_block_db(image_path)
+    end_time = datetime.datetime.now()
+    duration = end_time - start_time
+
+    print('Image parsed in:')
+    print(duration)
 
 
 if __name__ == '__main__':
