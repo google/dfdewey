@@ -21,7 +21,7 @@ import pytsk3
 
 
 def list_directory(
-    c, directory, part=None, stack=None, rows=None, batch_size=1):
+    c, directory, part=None, stack=None, rows=None, batch_size=1500):
   """Recursive function to create a filesystem listing.
 
   Args:
@@ -84,7 +84,8 @@ def list_directory(
             sub_directory,
             part=part,
             stack=stack,
-            rows=rows)
+            rows=rows,
+            batch_size=batch_size)
 
     except IOError:
       pass
@@ -133,13 +134,13 @@ def initialise_block_db(image_path):
       port=5432)
   c = inum_db.cursor()
 
-  populate_block_db(img, c)
+  populate_block_db(img, c, batch_size=1500)
 
   inum_db.commit()
   inum_db.close()
 
 
-def populate_block_db(img, c, batch_size=1):
+def populate_block_db(img, c, batch_size=1500):
   """Creates a new image database.
 
   Args:
@@ -148,6 +149,7 @@ def populate_block_db(img, c, batch_size=1):
       batch_size: number of rows to insert at a time
   """
   print('Image database does not already exist. Parsing image filesystem(s)...')
+  print('Batch size: {0:d}'.format(batch_size))
   c.execute('CREATE TABLE blocks (block INTEGER, inum INTEGER, part INTEGER)')
   c.execute('CREATE TABLE files (inum INTEGER, filename TEXT, part INTEGER)')
 
@@ -185,7 +187,7 @@ def populate_block_db(img, c, batch_size=1):
 
       # File names
       directory = fs.open_dir(path='/')
-      list_directory(c, directory, part=part.addr)
+      list_directory(c, directory, part=part.addr, batch_size=batch_size)
   except IOError:
     pass
 
@@ -213,7 +215,7 @@ def populate_block_db(img, c, batch_size=1):
 
     # File names
     directory = fs.open_dir(path='/')
-    list_directory(c, directory)
+    list_directory(c, directory, batch_size=batch_size)
 
 
 def get_inums(c, block, part=None):
