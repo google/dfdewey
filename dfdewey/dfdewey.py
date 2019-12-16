@@ -171,12 +171,12 @@ def main():
     print('Processing complete!')
     print(datetime.datetime.now())
   elif args.search:
-    if not args.index_id:
+    if not args.index:
       print('Index ID is required to search.')
       sys.exit(-1)
 
     print('\n*** Searching for \'{0:s}\'...'.format(args.search))
-    results = search_index(args.index_id, args.search)
+    results = search_index(args.index, args.search)
     print('Returned {0:d} results:'.format(results['hits']['total']['value']))
     filename = '*Disabled*'
     for hit in results['hits']['hits']:
