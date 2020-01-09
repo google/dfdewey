@@ -58,6 +58,7 @@ def parse_args():
 
   # Search args
   parser.add_argument('-s', '--search', help='search query')
+  parser.add_argument('--search_list', help='file with search queries')
   parser.add_argument(
       '-f', '--file_lookup', help='enable file lookups', action='store_true')
 
@@ -196,6 +197,20 @@ def main():
             hit['_source']['offset'],
             filename,
             hit['_source']['data'].strip()))
+  elif args.search_list:
+    if not args.index:
+      print('Index ID is required to search.')
+      sys.exit(-1)
+
+    with open(args.search_list, 'r') as search_terms:
+      print(
+          '\n*** Searching for terms in \'{0:s}\'...'.format(args.search_list))
+      for term in search_terms:
+        term = ''.join(('"', term.strip(), '"'))
+        results = search_index(args.index, term)
+        if results['hits']['total']['value'] > 0:
+          print('{0:s} - {1:d} hits'.format(
+              term, results['hits']['total']['value']))
   elif args.parse:
     start_time = datetime.datetime.now()
     image_path = os.path.abspath(args.parse)
