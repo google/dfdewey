@@ -136,6 +136,9 @@ def initialise_block_db(image_path):
 
   populate_block_db(img, c, batch_size=1500)
 
+  c.execute('CREATE INDEX blocks_index ON blocks (block, part);')
+  c.execute('CREATE INDEX files_index ON files (inum, part);')
+
   inum_db.commit()
   inum_db.close()
 
@@ -380,6 +383,9 @@ def get_filename_from_offset(image_file, offset):
     else:
       filenames = ' | '.join(
           (filenames, '{0:s} ({1:d})'.format(filename, real_inum)))
+
+  c.execute('CREATE INDEX blocks_index ON blocks (block, part);')
+  c.execute('CREATE INDEX files_index ON files (inum, part);')
 
   inum_db.commit()
   inum_db.close()
