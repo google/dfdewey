@@ -16,13 +16,12 @@
 
 import argparse
 import datetime
-import hashlib
 import os
 import subprocess
-import sys
 import tempfile
 
 from datastore.elastic import ElasticsearchDataStore
+import psycopg2
 from utils import image
 
 
@@ -43,6 +42,9 @@ def parse_args():
   """
   parser = argparse.ArgumentParser()
 
+  parser.add_argument('-c', '--case', required=True, help='case ID')
+  parser.add_argument('-i', '--image', help='image file')
+
   # Indexing args
   parser.add_argument(
       '--no_base64', help='don\'t decode base64', action='store_true')
@@ -50,11 +52,6 @@ def parse_args():
       '--no_gzip', help='don\'t process gzip files', action='store_true')
   parser.add_argument(
       '--no_zip', help='don\'t process zip files', action='store_true')
-  parser.add_argument('--image', help='image file to be processed')
-
-  parser.add_argument('--index', help='datastore index ID')
-
-  parser.add_argument('-p', '--parse', help='image file to parse')
 
   # Search args
   parser.add_argument('-s', '--search', help='search query')
@@ -64,6 +61,93 @@ def parse_args():
 
   args = parser.parse_args()
   return args
+
+
+def process_image(image_file, case, no_base64=None, no_gzip=None, no_zip=None):
+  """Image processing function.
+
+  Run string extraction, indexing, and filesystem parsing for image file.
+
+  Args:
+      image_file (string):  The image file to be processed
+      case (string):        Case ID
+      no_base64 (bool):     Don't decode Base64
+      no_gzip (bool):       Don't decompress gzip streams
+      no_zip (bool):        Don't decompress zip archives
+  """
+  image_path = os.path.abspath(image_file)
+  output_path = tempfile.mkdtemp()
+
+  cmd = ['bulk_extractor',
+         '-o', output_path,
+         '-x', 'all',
+         '-e', 'wordlist']
+
+  if not no_base64:
+    cmd.extend(['-e', 'base64'])
+  if not no_gzip:
+    cmd.extend(['-e', 'gzip'])
+  if not no_zip:
+    cmd.extend(['-e', 'zip'])
+
+  cmd.extend(['-S', 'strings=YES', '-S', 'word_max=1000000'])
+  cmd.extend([image_path])
+  print('Processing start: {0!s}'.format(datetime.datetime.now()))
+  print('\n*** Running bulk extractor:\n{0:s}'.format(' '.join(cmd)))
+  output = subprocess.check_output(cmd)
+  md5_offset = output.index(b'MD5') + 19
+  image_hash = output[md5_offset:md5_offset+32].decode('utf-8')
+  print('String extraction completed: {0!s}'.format(datetime.datetime.now()))
+  print('\n*** Parsing image')
+  needs_indexing = image.initialise_block_db(image_path, image_hash, case)
+  print('Parsing completed: {0!s}'.format(datetime.datetime.now()))
+  if needs_indexing:
+    print('\n*** Indexing image')
+    index_strings(output_path, image_hash)
+    print('Indexing completed: {0!s}'.format(datetime.datetime.now()))
+  else:
+    print('\n*** Image already indexed')
+  print('Processing complete!')
+
+
+def index_strings(output_path, image_hash):
+  """ElasticSearch indexing function.
+
+  Args:
+      output_path (string): The output directory from bulk_extractor
+      image_hash (string):  MD5 of the parsed image
+  """
+  print('\n*** Indexing data...')
+  es = ElasticsearchDataStore()
+  index_name = ''.join(('es', image_hash))
+  index_name, event_type = es.create_index(index_name=index_name)
+  print('Index {0:s} created.'.format(index_name))
+
+  with open('/'.join((output_path, 'wordlist.txt')), 'r') as strings:
+    for line in strings:
+      if line[0] != '#':
+        string_record = _StringRecord()
+        string_record.image = image_hash
+
+        line = line.split('\t')
+        offset = line[0]
+        data = '\t'.join(line[1:])
+        if offset.find('-') > 0:
+          offset = offset.split('-')
+          image_offset = offset[0]
+          file_offset = '-'.join(offset[1:])
+          string_record.offset = int(image_offset)
+          string_record.file_offset = file_offset
+        else:
+          string_record.offset = int(offset)
+
+        string_record.data = data
+        records = index_record(es, index_name, event_type, string_record)
+        if records % 10000000 == 0:
+          print('Indexed {0:d} records...'.format(records))
+
+  records = es.import_event(index_name, event_type)
+  print('\n*** Indexed {0:d} strings.'.format(records))
 
 
 def index_record(es, index_name, event_type, string_record):
@@ -87,51 +171,72 @@ def index_record(es, index_name, event_type, string_record):
   return es.import_event(index_name, event_type, event=json_record)
 
 
-def index_strings(output_path, image_path):
-  """ElasticSearch indexing function.
+def search(query, image_path=None, query_list=None):
+  """Search function.
 
   Args:
-      output_path (string): The output directory from bulk_extractor
-      image_path (string):  Path to the parsed image
+      query (string): The query to run against the index
+      image_path (string): Path of the source image
+      query_list (string): Path to text file containing search terms
+
+  Returns:
+      Search results returned
   """
-  print('\n*** Indexing data...')
-  print(datetime.datetime.now())
-  es = ElasticsearchDataStore()
-  index_name = ''.join(
-      ('es', hashlib.md5(image_path.encode('utf-8')).hexdigest()))
-  index_name, event_type = es.create_index(index_name=index_name)
-  print('Index {0:s} created.'.format(index_name))
+  if image_path:
+    image_path = os.path.abspath(image_path)
+  index = None
+  if image_path:
+    db_name = 'dfdewey'
+    tracking_db = psycopg2.connect(
+        database=db_name,
+        user='dfdewey',
+        password='password',
+        host='127.0.0.1',
+        port=5432)
+    c = tracking_db.cursor()
+    c.execute(
+        'SELECT image_hash FROM images WHERE image_path = \'{0:s}\''.format(
+            image_path))
+    image_hash = c.fetchone()
 
-  with open('/'.join((output_path, 'wordlist.txt')), 'r') as strings:
-    for line in strings:
-      if line[0] != '#':
-        string_record = _StringRecord()
-        string_record.image = image_path
+    index = ''.join(('es', image_hash[0]))
 
-        line = line.split('\t')
-        offset = line[0]
-        data = '\t'.join(line[1:])
-        if offset.find('-') > 0:
-          offset = offset.split('-')
-          image_offset = offset[0]
-          file_offset = '-'.join(offset[1:])
-          string_record.offset = int(image_offset)
-          string_record.file_offset = file_offset
-        else:
-          string_record.offset = int(offset)
+    tracking_db.close()
 
-        string_record.data = data
-        records = index_record(es, index_name, event_type, string_record)
-        if records % 10000000 == 0:
-          print('Indexed {0:d} records...'.format(records))
-
-  records = es.import_event(index_name, event_type)
-  print('\n*** Indexing complete.\nIndexed {0:d} strings.'.format(records))
-  print(datetime.datetime.now())
+  if query_list:
+    with open(query_list, 'r') as search_terms:
+      print('\n*** Searching for terms in \'{0:s}\'...'.format(query_list))
+      for term in search_terms:
+        term = ''.join(('"', term.strip(), '"'))
+        results = search_index(index, term)
+        if results['hits']['total']['value'] > 0:
+          print('{0:s} - {1:d} hits'.format(
+              term, results['hits']['total']['value']))
+  else:
+    print('\n*** Searching for \'{0:s}\'...'.format(query))
+    results = search_index(index, query)
+    print('Returned {0:d} results:'.format(results['hits']['total']['value']))
+    for hit in results['hits']['hits']:
+      filename = image.get_filename_from_offset(
+          image_path,
+          hit['_source']['image'],
+          int(hit['_source']['offset']))
+      if hit['_source']['file_offset']:
+        print('Offset: {0:d}\tFile: {1:s}\tFile offset:{2:s}\t'
+              'String: {3:s}'.format(
+                  hit['_source']['offset'],
+                  filename,
+                  hit['_source']['file_offset'],
+                  hit['_source']['data'].strip()))
+      else:
+        print('Offset: {0:d}\tFile: {1:s}\tString: {2:s}'.format(
+            hit['_source']['offset'],
+            filename,
+            hit['_source']['data'].strip()))
 
 
 def search_index(index_id, search_query):
-  """ElasticSearch indexing function.
+  """ElasticSearch search function.
 
   Args:
       index_id (string): The ID of the index to be searched
@@ -147,79 +252,13 @@ def search_index(index_id, search_query):
 def main():
   """Main DFDewey function."""
   args = parse_args()
-  if args.image:
-    image_path = os.path.abspath(args.image)
-    output_path = tempfile.mkdtemp()
-
-    cmd = ['bulk_extractor',
-           '-o', output_path,
-           '-x', 'all',
-           '-e', 'wordlist']
-
-    if not args.no_base64:
-      cmd.extend(['-e', 'base64'])
-    if not args.no_gzip:
-      cmd.extend(['-e', 'gzip'])
-    if not args.no_zip:
-      cmd.extend(['-e', 'zip'])
-
-    cmd.extend(['-S', 'strings=YES', '-S', 'word_max=1000000'])
-    cmd.extend([image_path])
-    print('\n*** Running bulk extractor:\n{0:s}'.format(' '.join(cmd)))
-    subprocess.run(cmd)
-    index_strings(output_path, image_path)
-    image.initialise_block_db(image_path)
-    print('Processing complete!')
-    print(datetime.datetime.now())
+  if not args.search and not args.search_list:
+    process_image(
+        args.image, args.case, args.no_base64, args.no_gzip, args.no_zip)
   elif args.search:
-    if not args.index:
-      print('Index ID is required to search.')
-      sys.exit(-1)
-
-    print('\n*** Searching for \'{0:s}\'...'.format(args.search))
-    results = search_index(args.index, args.search)
-    print('Returned {0:d} results:'.format(results['hits']['total']['value']))
-    filename = '*Disabled*'
-    for hit in results['hits']['hits']:
-      if args.file_lookup:
-        filename = image.get_filename_from_offset(
-            hit['_source']['image'],
-            int(hit['_source']['offset']))
-      if hit['_source']['file_offset']:
-        print('Offset: {0:d}\tFile: {1:s}\tFile offset:{2:s}\t'
-              'String: {3:s}'.format(
-                  hit['_source']['offset'],
-                  filename,
-                  hit['_source']['file_offset'],
-                  hit['_source']['data'].strip()))
-      else:
-        print('Offset: {0:d}\tFile: {1:s}\tString: {2:s}'.format(
-            hit['_source']['offset'],
-            filename,
-            hit['_source']['data'].strip()))
+    search(args.search, args.image)
   elif args.search_list:
-    if not args.index:
-      print('Index ID is required to search.')
-      sys.exit(-1)
-
-    with open(args.search_list, 'r') as search_terms:
-      print(
-          '\n*** Searching for terms in \'{0:s}\'...'.format(args.search_list))
-      for term in search_terms:
-        term = ''.join(('"', term.strip(), '"'))
-        results = search_index(args.index, term)
-        if results['hits']['total']['value'] > 0:
-          print('{0:s} - {1:d} hits'.format(
-              term, results['hits']['total']['value']))
-  elif args.parse:
-    start_time = datetime.datetime.now()
-    image_path = os.path.abspath(args.parse)
-    image.initialise_block_db(image_path)
-    end_time = datetime.datetime.now()
-    duration = end_time - start_time
-
-    print('Image parsed in:')
-    print(duration)
+    search(None, args.image, args.search_list)
 
 
 if __name__ == '__main__':

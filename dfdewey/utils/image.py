@@ -13,11 +13,123 @@
 # limitations under the License.
 """Image File Access Functions."""
 
-import hashlib
-
 import psycopg2
 from psycopg2 import extras
 import pytsk3
+
+
+def initialise_block_db(image_path, image_hash, case):
+  """Creates a new image database.
+
+  Args:
+      image_path: path to image file
+      image_hash: MD5 of the image
+      case:       case ID
+
+  Returns:
+      Boolean value to indicate whether the image needs to be processed
+  """
+  img = pytsk3.Img_Info(image_path)
+
+  image_exists = check_tracking_database(image_path, image_hash, case)
+
+  if not image_exists:
+    db_name = ''.join(('fs', image_hash))
+    block_db = psycopg2.connect(
+        user='dfdewey',
+        password='password',
+        host='127.0.0.1',
+        port=5432)
+    block_db.set_isolation_level(psycopg2.extensions.ISOLATION_LEVEL_AUTOCOMMIT)
+    c = block_db.cursor()
+
+    c.execute('CREATE DATABASE {0:s}'.format(db_name))
+    block_db.close()
+
+    block_db = psycopg2.connect(
+        database=db_name,
+        user='dfdewey',
+        password='password',
+        host='127.0.0.1',
+        port=5432)
+    c = block_db.cursor()
+
+    populate_block_db(img, c, batch_size=1500)
+
+    block_db.commit()
+    block_db.close()
+
+  return not image_exists
+
+
+def check_tracking_database(image_path, image_hash, case):
+  """Checks if an image exists in the tracking database.
+
+  Checks if an image exists in the tracking database and adds it if not.
+  If the image exists, but is not associated with the given case ID, will add
+  the association.
+
+  Args:
+      image_path: path to image file
+      image_hash: MD5 of the image
+      case:       case ID
+
+  Returns:
+      Boolean value to indicate the existence of the image
+  """
+  db_name = 'dfdewey'
+  tracking_db = psycopg2.connect(
+      database=db_name,
+      user='dfdewey',
+      password='password',
+      host='127.0.0.1',
+      port=5432)
+  tracking_db.set_isolation_level(
+      psycopg2.extensions.ISOLATION_LEVEL_AUTOCOMMIT)
+  c = tracking_db.cursor()
+
+  c.execute("""
+      SELECT 1 FROM information_schema.tables
+      WHERE table_schema = 'public' AND table_name = 'images'""")
+  tables_exist = c.fetchone()
+
+  image_exists = False
+  if not tables_exist:
+    c.execute(
+        'CREATE TABLE images (image_path TEXT, image_hash TEXT PRIMARY KEY)')
+
+    c.execute("""
+        CREATE TABLE image_case (
+          case_id TEXT, image_hash TEXT REFERENCES images(image_hash), 
+          PRIMARY KEY (case_id, image_hash))""")
+  else:
+    c.execute('SELECT 1 from images WHERE image_hash = \'{0:s}\''.format(
+        image_hash))
+    image = c.fetchone()
+    if image:
+      image_exists = True
+
+  image_case_exists = False
+  if image_exists:
+    c.execute("""
+        SELECT 1 from image_case 
+        WHERE image_hash = '{0:s}' AND case_id = '{1:s}'""".format(
+            image_hash, case))
+    image_case = c.fetchone()
+    if image_case:
+      image_case_exists = True
+
+  if not image_exists:
+    c.execute("""
+        INSERT INTO images (image_path, image_hash) 
+        VALUES ('{0:s}', '{1:s}')""".format(image_path, image_hash))
+  if not image_case_exists:
+    c.execute("""
+        INSERT INTO image_case (case_id, image_hash) 
+        VALUES ('{0:s}', '{1:s}')""".format(case, image_hash))
+
+  tracking_db.close()
+  return image_exists
 
 
 def list_directory(
@@ -105,41 +217,6 @@ def list_directory(
   return rows
 
 
-def initialise_block_db(image_path):
-  """Creates a new image database.
-
-  Args:
-      image_path: path to image file
-  """
-  img = pytsk3.Img_Info(image_path)
-
-  db_name = ''.join(
-      ('fs', hashlib.md5(image_path.encode('utf-8')).hexdigest()))
-  inum_db = psycopg2.connect(
-      user='dfdewey',
-      password='password',
-      host='127.0.0.1',
-      port=5432)
-  inum_db.set_isolation_level(psycopg2.extensions.ISOLATION_LEVEL_AUTOCOMMIT)
-  c = inum_db.cursor()
-
-  c.execute('CREATE DATABASE {0:s}'.format(db_name))
-  inum_db.close()
-
-  inum_db = psycopg2.connect(
-      database=db_name,
-      user='dfdewey',
-      password='password',
-      host='127.0.0.1',
-      port=5432)
-  c = inum_db.cursor()
-
-  populate_block_db(img, c, batch_size=1500)
-
-  inum_db.commit()
-  inum_db.close()
-
-
 def populate_block_db(img, c, batch_size=1500):
   """Creates a new image database.
 
@@ -195,23 +272,26 @@ def populate_block_db(img, c, batch_size=1500):
     fs = pytsk3.FS_Info(img)
     rows = []
     for i in range(fs.info.first_inum, fs.info.last_inum + 1):
-      f = fs.open_meta(i)
-      if f.info.meta.nlink > 0:
-        for attr in f:
-          for run in attr:
-            for j in range(run.len):
-              rows.append((run.addr + j, i,))
-              if len(rows) >= batch_size:
-                extras.execute_values(
-                    c,
-                    'INSERT INTO blocks (block, inum) VALUES %s',
-                    rows)
-                rows = []
-      if rows:
-        extras.execute_values(
-            c,
-            'INSERT INTO blocks (block, inum) VALUES %s',
-            rows)
+      try:
+        f = fs.open_meta(i)
+        if f.info.meta.nlink > 0:
+          for attr in f:
+            for run in attr:
+              for j in range(run.len):
+                rows.append((run.addr + j, i,))
+                if len(rows) >= batch_size:
+                  extras.execute_values(
+                      c,
+                      'INSERT INTO blocks (block, inum) VALUES %s',
+                      rows)
+                  rows = []
+        if rows:
+          extras.execute_values(
+              c,
+              'INSERT INTO blocks (block, inum) VALUES %s',
+              rows)
+      except OSError:
+        continue
 
     # File names
     directory = fs.open_dir(path='/')
@@ -295,55 +375,29 @@ def get_resident_inum(offset, fs):
   return 0
 
 
-def get_filename_from_offset(image_file, offset):
+def get_filename_from_offset(image_path, image_hash, offset):
   """Gets filename given a byte offset within an image.
 
   Args:
-      image_file: Source image filename
+      image_path: Source image path
+      image_hash: Source image hash
       offset: Byte offset within the image
 
   Returns:
       Filename allocated the given offset
   """
+  img = pytsk3.Img_Info(image_path)
   sector_offset = offset / 512
-  img = pytsk3.Img_Info(image_file)
 
-  db_name = ''.join(
-      ('fs', hashlib.md5(image_file.encode('utf-8')).hexdigest()))
+  db_name = ''.join(('fs', image_hash))
+
   inum_db = psycopg2.connect(
+      database=db_name,
       user='dfdewey',
       password='password',
       host='127.0.0.1',
       port=5432)
-  inum_db.set_isolation_level(psycopg2.extensions.ISOLATION_LEVEL_AUTOCOMMIT)
   c = inum_db.cursor()
-  c.execute(
-      'SELECT 1 FROM pg_catalog.pg_database '
-      'WHERE datname = \'{0:s}\''.format(db_name))
-  db_exists = c.fetchone()
-  if not db_exists:
-    c.execute('CREATE DATABASE {0:s}'.format(db_name))
-    inum_db.close()
-
-    inum_db = psycopg2.connect(
-        database=db_name,
-        user='dfdewey',
-        password='password',
-        host='127.0.0.1',
-        port=5432)
-    c = inum_db.cursor()
-
-    populate_block_db(img, c)
-  else:
-    inum_db.close()
-
-    inum_db = psycopg2.connect(
-        database=db_name,
-        user='dfdewey',
-        password='password',
-        host='127.0.0.1',
-        port=5432)
-    c = inum_db.cursor()
 
   partition = None
   partition_offset = None
@@ -372,17 +426,17 @@ def get_filename_from_offset(image_file, offset):
 
     inums = get_inums(c, offset / block_size, part=partition)
 
-  filenames = None
+  filenames = []
   for i in inums:
     real_inum = i[0]
     if i[0] == 0 and fs.info.ftype == pytsk3.TSK_FS_TYPE_NTFS_DETECT:
       real_inum = get_resident_inum(offset, fs)
     filename = get_filename(c, real_inum, part=partition)
     if filename and not filenames:
-      filenames = '{0:s} ({1:d})'.format(filename, real_inum)
+      filenames.append('{0:s} ({1:d})'.format(filename, real_inum))
     else:
-      filenames = ' | '.join(
-          (filenames, '{0:s} ({1:d})'.format(filename, real_inum)))
+      if '{0:s} ({1:d})'.format(filename, real_inum) not in filenames:
+        filenames.append('{0:s} ({1:d})'.format(filename, real_inum))
 
   inum_db.commit()
   inum_db.close()
@@ -390,4 +444,4 @@ def get_filename_from_offset(image_file, offset):
   if filenames is None:
     return '*None*'
   else:
-    return filenames
+    return ' | '.join(filenames)
