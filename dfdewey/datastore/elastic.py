@@ -46,7 +46,7 @@ class ElasticsearchDataStore(object):
     self.import_events = []
 
   def create_index(self, index_name=uuid.uuid4().hex, doc_type='string'):
-    """Create index with Timesketch settings.
+    """Create an index.
 
     Args:
         index_name: Name of the index. Default is a generated UUID.

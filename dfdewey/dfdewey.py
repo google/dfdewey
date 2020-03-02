@@ -21,7 +21,7 @@ import subprocess
 import tempfile
 
 from datastore.elastic import ElasticsearchDataStore
-import psycopg2
+from datastore.postgresql import PostgresqlDataStore
 from utils import image
 
 
@@ -56,8 +56,8 @@ def parse_args():
   # Search args
   parser.add_argument('-s', '--search', help='search query')
   parser.add_argument('--search_list', help='file with search queries')
-  parser.add_argument(
-      '-f', '--file_lookup', help='enable file lookups', action='store_true')
+  # parser.add_argument(
+      # '-f', '--file_lookup', help='enable file lookups', action='store_true')
 
   args = parser.parse_args()
   return args
@@ -186,22 +186,12 @@ def search(query, image_path=None, query_list=None):
     image_path = os.path.abspath(image_path)
   index = None
   if image_path:
-    db_name = 'dfdewey'
-    tracking_db = psycopg2.connect(
-        database=db_name,
-        user='dfdewey',
-        password='password',
-        host='127.0.0.1',
-        port=5432)
-    c = tracking_db.cursor()
-    c.execute(
+    tracking_db = PostgresqlDataStore()
+    image_hash = tracking_db.query_single_row(
         'SELECT image_hash FROM images WHERE image_path = \'{0:s}\''.format(
             image_path))
-    image_hash = c.fetchone()
 
     index = ''.join(('es', image_hash[0]))
-
-    tracking_db.close()
 
   if query_list:
     with open(query_list, 'r') as search_terms:
