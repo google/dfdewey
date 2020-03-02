@@ -182,10 +182,10 @@ def search(query, image_path=None, query_list=None):
   Returns:
       Search results returned
   """
-  if image_path:
-    image_path = os.path.abspath(image_path)
   index = None
   if image_path:
+    image_path = os.path.abspath(image_path)
+
     tracking_db = PostgresqlDataStore()
     image_hash = tracking_db.query_single_row(
         'SELECT image_hash FROM images WHERE image_path = \'{0:s}\''.format(

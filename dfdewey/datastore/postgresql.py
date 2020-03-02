@@ -27,7 +27,12 @@ postgresql_logger.setLevel(logging.WARNING)
 class PostgresqlDataStore(object):
   """Implements the datastore."""
 
-  def __init__(self, host='127.0.0.1', port=5432, db_name='dfdewey'):
+  def __init__(
+      self,
+      host='127.0.0.1',
+      port=5432,
+      db_name='dfdewey',
+      autocommit=False):
     """Create a PostgreSQL client."""
     super(PostgresqlDataStore, self).__init__()
     self.db = psycopg2.connect(
@@ -36,6 +41,36 @@ class PostgresqlDataStore(object):
         password='password',
         host=host,
         port=port)
+    if autocommit:
+      self.db.set_isolation_level(
+          psycopg2.extensions.ISOLATION_LEVEL_AUTOCOMMIT)
+    self.cursor = self.db.cursor()
+
+  def switch_database(
+      self,
+      host='127.0.0.1',
+      port=5432,
+      db_name='dfdewey',
+      autocommit=False):
+    """Connects to a different database.
+
+    Args:
+        host: Hostname or IP address of the PostgreSQL server
+        port: Port of the PostgreSQL server
+        db_name: Name of the database to connect to
+        autocommit: flag to set up the database connection as autocommit
+    """
+    self.db.commit()
+    self.db.close()
+    self.db = psycopg2.connect(
+        database=db_name,
+        user='dfdewey',
+        password='password',
+        host=host,
+        port=port)
+    if autocommit:
+      self.db.set_isolation_level(
+          psycopg2.extensions.ISOLATION_LEVEL_AUTOCOMMIT)
     self.cursor = self.db.cursor()
 
   def table_exists(self, table_name, table_schema='public'):

@@ -13,8 +13,7 @@
 # limitations under the License.
 """Image File Access Functions."""
 
-import psycopg2
-from psycopg2 import extras
+from datastore.postgresql import PostgresqlDataStore
 import pytsk3
 
 
@@ -31,38 +30,21 @@ def initialise_block_db(image_path, image_hash, case):
   """
   img = pytsk3.Img_Info(image_path)
 
-  image_exists = check_tracking_database(image_path, image_hash, case)
+  block_db = PostgresqlDataStore(autocommit=True)
+  image_exists = check_tracking_database(block_db, image_path, image_hash, case)
 
   if not image_exists:
     db_name = ''.join(('fs', image_hash))
-    block_db = psycopg2.connect(
-        user='dfdewey',
-        password='password',
-        host='127.0.0.1',
-        port=5432)
-    block_db.set_isolation_level(psycopg2.extensions.ISOLATION_LEVEL_AUTOCOMMIT)
-    c = block_db.cursor()
+    block_db.execute('CREATE DATABASE {0:s}'.format(db_name))
 
-    c.execute('CREATE DATABASE {0:s}'.format(db_name))
-    block_db.close()
+    block_db.switch_database(db_name=db_name)
 
-    block_db = psycopg2.connect(
-        database=db_name,
-        user='dfdewey',
-        password='password',
-        host='127.0.0.1',
-        port=5432)
-    c = block_db.cursor()
-
-    populate_block_db(img, c, batch_size=1500)
-
-    block_db.commit()
-    block_db.close()
+    populate_block_db(img, block_db, batch_size=1500)
 
   return not image_exists
 
 
-def check_tracking_database(image_path, image_hash, case):
+def check_tracking_database(database, image_path, image_hash, case):
   """Checks if an image exists in the tracking database.
 
   Checks if an image exists in the tracking database and adds it if not.
@@ -70,6 +52,7 @@ def check_tracking_database(image_path, image_hash, case):
   the association.
 
   Args:
+      database:   postgreSQL database
       image_path: path to image file
       image_hash: MD5 of the image
       case:       case ID
@@ -77,67 +60,47 @@ def check_tracking_database(image_path, image_hash, case):
   Returns:
       Boolean value to indicate the existence of the image
   """
-  db_name = 'dfdewey'
-  tracking_db = psycopg2.connect(
-      database=db_name,
-      user='dfdewey',
-      password='password',
-      host='127.0.0.1',
-      port=5432)
-  tracking_db.set_isolation_level(
-      psycopg2.extensions.ISOLATION_LEVEL_AUTOCOMMIT)
-  c = tracking_db.cursor()
-
-  c.execute("""
-      SELECT 1 FROM information_schema.tables
-      WHERE table_schema = 'public' AND table_name = 'images'""")
-  tables_exist = c.fetchone()
+  tables_exist = database.table_exists('images')
 
   image_exists = False
   if not tables_exist:
-    c.execute(
+    database.execute(
         'CREATE TABLE images (image_path TEXT, image_hash TEXT PRIMARY KEY)')
 
-    c.execute("""
+    database.execute("""
         CREATE TABLE image_case (
           case_id TEXT, image_hash TEXT REFERENCES images(image_hash), 
           PRIMARY KEY (case_id, image_hash))""")
   else:
-    c.execute('SELECT 1 from images WHERE image_hash = \'{0:s}\''.format(
-        image_hash))
-    image = c.fetchone()
-    if image:
-      image_exists = True
+    image_exists = database.value_exists('images', 'image_hash', image_hash)
 
   image_case_exists = False
   if image_exists:
-    c.execute("""
-        SELECT 1 from image_case 
+    image_case = database.query_single_row("""
+        SELECT 1 from image_case
         WHERE image_hash = '{0:s}' AND case_id = '{1:s}'""".format(
             image_hash, case))
-    image_case = c.fetchone()
     if image_case:
       image_case_exists = True
 
   if not image_exists:
-    c.execute("""
-        INSERT INTO images (image_path, image_hash) 
+    database.execute("""
+        INSERT INTO images (image_path, image_hash)
         VALUES ('{0:s}', '{1:s}')""".format(image_path, image_hash))
   if not image_case_exists:
-    c.execute("""
-        INSERT INTO image_case (case_id, image_hash) 
+    database.execute("""
+        INSERT INTO image_case (case_id, image_hash)
         VALUES ('{0:s}', '{1:s}')""".format(case, image_hash))
 
-  tracking_db.close()
   return image_exists
 
 
 def list_directory(
-    c, directory, part=None, stack=None, rows=None, batch_size=1500):
+    block_db, directory, part=None, stack=None, rows=None, batch_size=1500):
   """Recursive function to create a filesystem listing.
 
   Args:
-      c: sqlite database cursor
+      block_db: postgreSQL database
       directory: pytsk directory object
       part: partition number
       stack: Inode stack to control recursive filesystem parsing
@@ -171,19 +134,13 @@ def list_directory(
                    name.replace('\'', '\'\''),
                    part,))
       if len(rows) >= batch_size:
-        extras.execute_values(
-            c,
-            'INSERT INTO files (inum, filename, part) VALUES %s',
-            rows)
+        block_db.bulk_insert('files (inum, filename, part)', rows)
         rows = []
     else:
       rows.append((directory_entry.info.meta.addr,
                    name.replace('\'', '\'\''),))
       if len(rows) >= batch_size:
-        extras.execute_values(
-            c,
-            'INSERT INTO files (inum, filename) VALUES %s',
-            rows)
+        block_db.bulk_insert('files (inum, filename)', rows)
         rows = []
 
     try:
@@ -192,7 +149,7 @@ def list_directory(
 
       if inode not in stack:
         rows = list_directory(
-            c,
+            block_db,
             sub_directory,
             part=part,
             stack=stack,
@@ -205,30 +162,27 @@ def list_directory(
   stack.pop(-1)
   if not stack:
     if part:
-      extras.execute_values(
-          c,
-          'INSERT INTO files (inum, filename, part) VALUES %s',
-          rows)
+      block_db.bulk_insert('files (inum, filename, part)', rows)
     else:
-      extras.execute_values(
-          c,
-          'INSERT INTO files (inum, filename) VALUES %s',
-          rows)
+      block_db.bulk_insert('files (inum, filename)', rows)
+
   return rows
 
 
-def populate_block_db(img, c, batch_size=1500):
+def populate_block_db(img, block_db, batch_size=1500):
   """Creates a new image database.
 
   Args:
       img: pytsk image info object
-      c: sqlite database cursor
+      block_db: postgreSQL database
       batch_size: number of rows to insert at a time
   """
   print('Image database does not already exist. Parsing image filesystem(s)...')
   print('Batch size: {0:d}'.format(batch_size))
-  c.execute('CREATE TABLE blocks (block INTEGER, inum INTEGER, part INTEGER)')
-  c.execute('CREATE TABLE files (inum INTEGER, filename TEXT, part INTEGER)')
+  block_db.execute(
+      'CREATE TABLE blocks (block INTEGER, inum INTEGER, part INTEGER)')
+  block_db.execute(
+      'CREATE TABLE files (inum INTEGER, filename TEXT, part INTEGER)')
 
   has_partition_table = False
   try:
@@ -251,20 +205,14 @@ def populate_block_db(img, c, batch_size=1500):
               for j in range(run.len):
                 rows.append((run.addr + j, i, part.addr,))
                 if len(rows) >= batch_size:
-                  extras.execute_values(
-                      c,
-                      'INSERT INTO blocks (block, inum, part) VALUES %s',
-                      rows)
+                  block_db.bulk_insert('blocks (block, inum, part)', rows)
                   rows = []
       if rows:
-        extras.execute_values(
-            c,
-            'INSERT INTO blocks (block, inum, part) VALUES %s',
-            rows)
+        block_db.bulk_insert('blocks (block, inum, part)', rows)
 
       # File names
       directory = fs.open_dir(path='/')
-      list_directory(c, directory, part=part.addr, batch_size=batch_size)
+      list_directory(block_db, directory, part=part.addr, batch_size=batch_size)
   except IOError:
     pass
 
@@ -280,32 +228,26 @@ def populate_block_db(img, c, batch_size=1500):
               for j in range(run.len):
                 rows.append((run.addr + j, i,))
                 if len(rows) >= batch_size:
-                  extras.execute_values(
-                      c,
-                      'INSERT INTO blocks (block, inum) VALUES %s',
-                      rows)
+                  block_db.bulk_insert('blocks (block, inum)', rows)
                   rows = []
         if rows:
-          extras.execute_values(
-              c,
-              'INSERT INTO blocks (block, inum) VALUES %s',
-              rows)
+          block_db.bulk_insert('blocks (block, inum)', rows)
       except OSError:
         continue
 
     # File names
     directory = fs.open_dir(path='/')
-    list_directory(c, directory, batch_size=batch_size)
+    list_directory(block_db, directory, batch_size=batch_size)
 
-  c.execute('CREATE INDEX blocks_index ON blocks (block, part);')
-  c.execute('CREATE INDEX files_index ON files (inum, part);')
+  block_db.execute('CREATE INDEX blocks_index ON blocks (block, part);')
+  block_db.execute('CREATE INDEX files_index ON files (inum, part);')
 
 
-def get_inums(c, block, part=None):
+def get_inums(block_db, block, part=None):
   """Gets inode number from block offset.
 
   Args:
-      c: sqlite database cursor
+      block_db: postgreSQL database
       block: Block offset within the image
       part: Partition number
 
@@ -313,21 +255,21 @@ def get_inums(c, block, part=None):
       Inode number(s) of the given block or None
   """
   if part:
-    c.execute('SELECT inum FROM blocks '
-              'WHERE block = {0:d} '
-              'AND part = {1:d}'.format(int(block), part))
+    inums = block_db.query(
+        'SELECT inum FROM blocks WHERE block = {0:d} AND part = {1:d}'.format(
+            int(block), part))
   else:
-    c.execute('SELECT inum FROM blocks WHERE block = {0:d}'.format(int(block)))
-  inums = c.fetchall()
+    inums = block_db.execute(
+        'SELECT inum FROM blocks WHERE block = {0:d}'.format(int(block)))
 
   return inums
 
 
-def get_filename(c, inum, part=None):
+def get_filename(block_db, inum, part=None):
   """Gets filename given an inode number.
 
   Args:
-      c: sqlite database cursor
+      block_db: postgreSQL database
       inum: Inode number of target file
       part: Partition number
 
@@ -335,12 +277,13 @@ def get_filename(c, inum, part=None):
       Filename of given inode or None
   """
   if part:
-    c.execute('SELECT filename FROM files '
-              'WHERE inum = {0:d} '
-              'AND part = {1:d}'.format(inum, part))
+    filenames = block_db.query(
+        'SELECT filename FROM files WHERE inum = {0:d} AND part = {1:d}'.format(
+            inum, part))
   else:
-    c.execute('SELECT filename FROM files WHERE inum = {0:d}'.format(inum))
-  filenames = c.fetchall()
+    filenames = block_db.query(
+        'SELECT filename FROM files WHERE inum = {0:d}'.format(inum))
+
   if filenames:
     filename = filenames[0][0]
   else:
@@ -390,14 +333,7 @@ def get_filename_from_offset(image_path, image_hash, offset):
   sector_offset = offset / 512
 
   db_name = ''.join(('fs', image_hash))
-
-  inum_db = psycopg2.connect(
-      database=db_name,
-      user='dfdewey',
-      password='password',
-      host='127.0.0.1',
-      port=5432)
-  c = inum_db.cursor()
+  block_db = PostgresqlDataStore(db_name=db_name)
 
   partition = None
   partition_offset = None
@@ -424,22 +360,19 @@ def get_filename_from_offset(image_path, image_hash, offset):
       print(e)
     block_size = fs.info.block_size
 
-    inums = get_inums(c, offset / block_size, part=partition)
+    inums = get_inums(block_db, offset / block_size, part=partition)
 
   filenames = []
   for i in inums:
     real_inum = i[0]
     if i[0] == 0 and fs.info.ftype == pytsk3.TSK_FS_TYPE_NTFS_DETECT:
       real_inum = get_resident_inum(offset, fs)
-    filename = get_filename(c, real_inum, part=partition)
+    filename = get_filename(block_db, real_inum, part=partition)
     if filename and not filenames:
       filenames.append('{0:s} ({1:d})'.format(filename, real_inum))
     else:
       if '{0:s} ({1:d})'.format(filename, real_inum) not in filenames:
         filenames.append('{0:s} ({1:d})'.format(filename, real_inum))
-
-  inum_db.commit()
-  inum_db.close()
 
   if filenames is None:
     return '*None*'
