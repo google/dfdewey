@@ -349,6 +349,7 @@ def get_filename_from_offset(image_path, image_hash, offset):
   except IOError:
     pass
 
+  inums = None
   if not unalloc_part:
     try:
       if not partition_offset:
@@ -363,16 +364,17 @@ def get_filename_from_offset(image_path, image_hash, offset):
     inums = get_inums(block_db, offset / block_size, part=partition)
 
   filenames = []
-  for i in inums:
-    real_inum = i[0]
-    if i[0] == 0 and fs.info.ftype == pytsk3.TSK_FS_TYPE_NTFS_DETECT:
-      real_inum = get_resident_inum(offset, fs)
-    filename = get_filename(block_db, real_inum, part=partition)
-    if filename and not filenames:
-      filenames.append('{0:s} ({1:d})'.format(filename, real_inum))
-    else:
-      if '{0:s} ({1:d})'.format(filename, real_inum) not in filenames:
+  if inums:
+    for i in inums:
+      real_inum = i[0]
+      if i[0] == 0 and fs.info.ftype == pytsk3.TSK_FS_TYPE_NTFS_DETECT:
+        real_inum = get_resident_inum(offset, fs)
+      filename = get_filename(block_db, real_inum, part=partition)
+      if filename and not filenames:
         filenames.append('{0:s} ({1:d})'.format(filename, real_inum))
+      else:
+        if '{0:s} ({1:d})'.format(filename, real_inum) not in filenames:
+          filenames.append('{0:s} ({1:d})'.format(filename, real_inum))
 
   if filenames is None:
     return '*None*'

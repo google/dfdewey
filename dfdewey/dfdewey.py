@@ -171,58 +171,75 @@ def index_record(es, index_name, event_type, string_record):
   return es.import_event(index_name, event_type, event=json_record)
 
 
-def search(query, image_path=None, query_list=None):
+def search(query, case, image_path=None, query_list=None):
   """Search function.
 
   Args:
       query (string): The query to run against the index
+      case (string): The case to query (if no specific image is provided)
       image_path (string): Path of the source image
       query_list (string): Path to text file containing search terms
 
   Returns:
       Search results returned
   """
-  index = None
+  tracking_db = PostgresqlDataStore()
+  images = {}
   if image_path:
     image_path = os.path.abspath(image_path)
 
-    tracking_db = PostgresqlDataStore()
     image_hash = tracking_db.query_single_row(
         'SELECT image_hash FROM images WHERE image_path = \'{0:s}\''.format(
             image_path))
 
-    index = ''.join(('es', image_hash[0]))
-
-  if query_list:
-    with open(query_list, 'r') as search_terms:
-      print('\n*** Searching for terms in \'{0:s}\'...'.format(query_list))
-      for term in search_terms:
-        term = ''.join(('"', term.strip(), '"'))
-        results = search_index(index, term)
-        if results['hits']['total']['value'] > 0:
-          print('{0:s} - {1:d} hits'.format(
-              term, results['hits']['total']['value']))
+    images[image_hash[0]] = image_path
   else:
-    print('\n*** Searching for \'{0:s}\'...'.format(query))
-    results = search_index(index, query)
-    print('Returned {0:d} results:'.format(results['hits']['total']['value']))
-    for hit in results['hits']['hits']:
-      filename = image.get_filename_from_offset(
-          image_path,
-          hit['_source']['image'],
-          int(hit['_source']['offset']))
-      if hit['_source']['file_offset']:
-        print('Offset: {0:d}\tFile: {1:s}\tFile offset:{2:s}\t'
-              'String: {3:s}'.format(
-                  hit['_source']['offset'],
-                  filename,
-                  hit['_source']['file_offset'],
-                  hit['_source']['data'].strip()))
-      else:
-        print('Offset: {0:d}\tFile: {1:s}\tString: {2:s}'.format(
-            hit['_source']['offset'],
-            filename,
-            hit['_source']['data'].strip()))
+    print('No image specified, searching all images in case \'{0:s}\''.format(
+        case))
+    image_hashes = tracking_db.query(
+        'SELECT image_hash FROM image_case WHERE case_id = \'{0:s}\''.format(
+            case))
+    for image_hash in image_hashes:
+      image_hash = image_hash[0]
+      image_path = tracking_db.query_single_row(
+          'SELECT image_path FROM images WHERE image_hash = \'{0:s}\''.format(
+              image_hash))
+
+      images[image_hash] = image_path[0]
+
+  for image_hash, image_path in images.items():
+    print('\n\nSearching {0:s} ({1:s})'.format(images[image_hash], image_hash))
+    index = ''.join(('es', image_hash))
+    if query_list:
+      with open(query_list, 'r') as search_terms:
+        print('\n*** Searching for terms in \'{0:s}\'...'.format(query_list))
+        for term in search_terms:
+          term = ''.join(('"', term.strip(), '"'))
+          results = search_index(index, term)
+          if results['hits']['total']['value'] > 0:
+            print('{0:s} - {1:d} hits'.format(
+                term, results['hits']['total']['value']))
+    else:
+      print('\n*** Searching for \'{0:s}\'...'.format(query))
+      results = search_index(index, query)
+      print('Returned {0:d} results:'.format(results['hits']['total']['value']))
+      for hit in results['hits']['hits']:
+        filename = image.get_filename_from_offset(
+            image_path,
+            hit['_source']['image'],
+            int(hit['_source']['offset']))
+        if hit['_source']['file_offset']:
+          print('Offset: {0:d}\tFile: {1:s}\tFile offset:{2:s}\t'
+                'String: {3:s}'.format(
+                    hit['_source']['offset'],
+                    filename,
+                    hit['_source']['file_offset'],
+                    hit['_source']['data'].strip()))
+        else:
+          print('Offset: {0:d}\tFile: {1:s}\tString: {2:s}'.format(
+              hit['_source']['offset'],
+              filename,
+              hit['_source']['data'].strip()))
 
 
 def search_index(index_id, search_query):
@@ -246,9 +263,9 @@ def main():
     process_image(
         args.image, args.case, args.no_base64, args.no_gzip, args.no_zip)
   elif args.search:
-    search(args.search, args.image)
+    search(args.search, args.case, args.image)
   elif args.search_list:
-    search(None, args.image, args.search_list)
+    search(None, args.case, args.image, args.search_list)
 
 
 if __name__ == '__main__':
