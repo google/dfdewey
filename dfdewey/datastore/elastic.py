@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 # Copyright 2019 Google Inc. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -16,7 +17,6 @@
 import codecs
 import collections
 import logging
-import uuid
 
 from elasticsearch import Elasticsearch
 from elasticsearch import exceptions
@@ -45,18 +45,17 @@ class ElasticsearchDataStore(object):
     self.import_counter = collections.Counter()
     self.import_events = []
 
-  def create_index(self, index_name=uuid.uuid4().hex, doc_type='string'):
+  def create_index(self, index_name, doc_type='string'):
     """Create an index.
 
     Args:
-        index_name: Name of the index. Default is a generated UUID.
-        doc_type: Name of the document type. Default id generic_event.
+        index_name: Name of the index
+        doc_type: Name of the document type
 
     Returns:
         Index name in string format.
         Document type in string format.
     """
-
     if not self.client.indices.exists(index_name):
       try:
         self.client.indices.create(index=index_name)
@@ -81,8 +80,7 @@ class ElasticsearchDataStore(object):
         self.client.indices.delete(index=index_name)
       except exceptions.ConnectionError as e:
         raise RuntimeError(
-            'Unable to connect to backend datastore: {}'.format(e)
-        )
+            'Unable to connect to backend datastore: {}'.format(e))
 
   def import_event(
       self, index_name, event_type, event=None,
@@ -91,7 +89,7 @@ class ElasticsearchDataStore(object):
 
     Args:
         index_name: Name of the index in Elasticsearch
-        event_type: Type of event (e.g. plaso_event)
+        event_type: Type of event (e.g. string)
         event: Event dictionary
         event_id: Event Elasticsearch ID
         flush_interval: Number of events to queue up before indexing
@@ -179,7 +177,7 @@ class ElasticsearchDataStore(object):
 
     This will take a query string from the UI together with a filter definition.
     Based on this it will execute the search request on ElasticSearch and get
-    result back.
+    the result back.
 
     Args:
         index_id: Index to be searched

@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 # Copyright 2019 Google Inc. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -21,9 +22,9 @@ def initialise_block_db(image_path, image_hash, case):
   """Creates a new image database.
 
   Args:
-      image_path: path to image file
+      image_path: Path to image file
       image_hash: MD5 of the image
-      case:       case ID
+      case: Case ID
 
   Returns:
       Boolean value to indicate whether the image needs to be processed
@@ -44,7 +45,7 @@ def initialise_block_db(image_path, image_hash, case):
   return not image_exists
 
 
-def check_tracking_database(database, image_path, image_hash, case):
+def check_tracking_database(tracking_db, image_path, image_hash, case):
   """Checks if an image exists in the tracking database.
 
   Checks if an image exists in the tracking database and adds it if not.
@@ -52,31 +53,31 @@ def check_tracking_database(database, image_path, image_hash, case):
   the association.
 
   Args:
-      database:   postgreSQL database
-      image_path: path to image file
+      tracking_db: PostgreSQL database
+      image_path: Path to image file
       image_hash: MD5 of the image
-      case:       case ID
+      case: Case ID
 
   Returns:
       Boolean value to indicate the existence of the image
   """
-  tables_exist = database.table_exists('images')
+  tables_exist = tracking_db.table_exists('images')
 
   image_exists = False
   if not tables_exist:
-    database.execute(
+    tracking_db.execute(
         'CREATE TABLE images (image_path TEXT, image_hash TEXT PRIMARY KEY)')
 
-    database.execute("""
+    tracking_db.execute("""
         CREATE TABLE image_case (
           case_id TEXT, image_hash TEXT REFERENCES images(image_hash), 
           PRIMARY KEY (case_id, image_hash))""")
   else:
-    image_exists = database.value_exists('images', 'image_hash', image_hash)
+    image_exists = tracking_db.value_exists('images', 'image_hash', image_hash)
 
   image_case_exists = False
   if image_exists:
-    image_case = database.query_single_row("""
+    image_case = tracking_db.query_single_row("""
         SELECT 1 from image_case
         WHERE image_hash = '{0:s}' AND case_id = '{1:s}'""".format(
             image_hash, case))
@@ -84,101 +85,26 @@ def check_tracking_database(database, image_path, image_hash, case):
       image_case_exists = True
 
   if not image_exists:
-    database.execute("""
+    tracking_db.execute("""
         INSERT INTO images (image_path, image_hash)
         VALUES ('{0:s}', '{1:s}')""".format(image_path, image_hash))
   if not image_case_exists:
-    database.execute("""
+    tracking_db.execute("""
         INSERT INTO image_case (case_id, image_hash)
         VALUES ('{0:s}', '{1:s}')""".format(case, image_hash))
 
   return image_exists
 
 
-def list_directory(
-    block_db, directory, part=None, stack=None, rows=None, batch_size=1500):
-  """Recursive function to create a filesystem listing.
-
-  Args:
-      block_db: postgreSQL database
-      directory: pytsk directory object
-      part: partition number
-      stack: Inode stack to control recursive filesystem parsing
-      rows: Array for batch database inserts
-      batch_size: number of rows to insert at a time
-
-  Returns:
-      Current rows array for recursion
-  """
-  if not stack:
-    stack = []
-  if not rows:
-    rows = []
-  stack.append(directory.info.fs_file.meta.addr)
-
-  for directory_entry in directory:
-    if (not hasattr(directory_entry, 'info') or
-        not hasattr(directory_entry.info, 'name') or
-        not hasattr(directory_entry.info.name, 'name') or
-        directory_entry.info.meta is None or
-        directory_entry.info.name.name in [b'.', b'..'] or
-        directory_entry.info.name.flags == pytsk3.TSK_FS_NAME_FLAG_UNALLOC):
-      continue
-    try:
-      name = directory_entry.info.name.name.decode('utf-8')
-    except UnicodeDecodeError:
-      print('Unable to decode: {}'.format(directory_entry.info.name.name))
-      continue
-    if part:
-      rows.append((directory_entry.info.meta.addr,
-                   name.replace('\'', '\'\''),
-                   part,))
-      if len(rows) >= batch_size:
-        block_db.bulk_insert('files (inum, filename, part)', rows)
-        rows = []
-    else:
-      rows.append((directory_entry.info.meta.addr,
-                   name.replace('\'', '\'\''),))
-      if len(rows) >= batch_size:
-        block_db.bulk_insert('files (inum, filename)', rows)
-        rows = []
-
-    try:
-      sub_directory = directory_entry.as_directory()
-      inode = directory_entry.info.meta.addr
-
-      if inode not in stack:
-        rows = list_directory(
-            block_db,
-            sub_directory,
-            part=part,
-            stack=stack,
-            rows=rows,
-            batch_size=batch_size)
-
-    except IOError:
-      pass
-
-  stack.pop(-1)
-  if not stack:
-    if part:
-      block_db.bulk_insert('files (inum, filename, part)', rows)
-    else:
-      block_db.bulk_insert('files (inum, filename)', rows)
-
-  return rows
-
-
 def populate_block_db(img, block_db, batch_size=1500):
-  """Creates a new image database.
+  """Creates a new image block database.
 
   Args:
       img: pytsk image info object
-      block_db: postgreSQL database
-      batch_size: number of rows to insert at a time
+      block_db: PostgreSQL database
+      batch_size: Number of rows to insert at a time
   """
   print('Image database does not already exist. Parsing image filesystem(s)...')
-  print('Batch size: {0:d}'.format(batch_size))
   block_db.execute(
       'CREATE TABLE blocks (block INTEGER, inum INTEGER, part INTEGER)')
   block_db.execute(
@@ -243,79 +169,78 @@ def populate_block_db(img, block_db, batch_size=1500):
   block_db.execute('CREATE INDEX files_index ON files (inum, part);')
 
 
-def get_inums(block_db, block, part=None):
-  """Gets inode number from block offset.
+def list_directory(
+    block_db, directory, part=None, stack=None, rows=None, batch_size=1500):
+  """Recursive function to create a filesystem listing.
 
   Args:
-      block_db: postgreSQL database
-      block: Block offset within the image
+      block_db: PostgreSQL database
+      directory: pytsk directory object
       part: Partition number
+      stack: Inode stack to control recursive filesystem parsing
+      rows: Array for batch database inserts
+      batch_size: Number of rows to insert at a time
 
   Returns:
-      Inode number(s) of the given block or None
+      Current rows array for recursion
   """
-  if part:
-    inums = block_db.query(
-        'SELECT inum FROM blocks WHERE block = {0:d} AND part = {1:d}'.format(
-            int(block), part))
-  else:
-    inums = block_db.execute(
-        'SELECT inum FROM blocks WHERE block = {0:d}'.format(int(block)))
+  if not stack:
+    stack = []
+  if not rows:
+    rows = []
+  stack.append(directory.info.fs_file.meta.addr)
 
-  return inums
+  for directory_entry in directory:
+    if (not hasattr(directory_entry, 'info') or
+        not hasattr(directory_entry.info, 'name') or
+        not hasattr(directory_entry.info.name, 'name') or
+        directory_entry.info.meta is None or
+        directory_entry.info.name.name in [b'.', b'..'] or
+        directory_entry.info.name.flags == pytsk3.TSK_FS_NAME_FLAG_UNALLOC):
+      continue
+    try:
+      name = directory_entry.info.name.name.decode('utf-8')
+    except UnicodeDecodeError:
+      print('Unable to decode: {}'.format(directory_entry.info.name.name))
+      continue
+    if part:
+      rows.append((directory_entry.info.meta.addr,
+                   name.replace('\'', '\'\''),
+                   part,))
+      if len(rows) >= batch_size:
+        block_db.bulk_insert('files (inum, filename, part)', rows)
+        rows = []
+    else:
+      rows.append((directory_entry.info.meta.addr,
+                   name.replace('\'', '\'\''),))
+      if len(rows) >= batch_size:
+        block_db.bulk_insert('files (inum, filename)', rows)
+        rows = []
 
+    try:
+      sub_directory = directory_entry.as_directory()
+      inode = directory_entry.info.meta.addr
 
-def get_filename(block_db, inum, part=None):
-  """Gets filename given an inode number.
+      if inode not in stack:
+        rows = list_directory(
+            block_db,
+            sub_directory,
+            part=part,
+            stack=stack,
+            rows=rows,
+            batch_size=batch_size)
 
-  Args:
-      block_db: postgreSQL database
-      inum: Inode number of target file
-      part: Partition number
+    except IOError:
+      pass
 
-  Returns:
-      Filename of given inode or None
-  """
-  if part:
-    filenames = block_db.query(
-        'SELECT filename FROM files WHERE inum = {0:d} AND part = {1:d}'.format(
-            inum, part))
-  else:
-    filenames = block_db.query(
-        'SELECT filename FROM files WHERE inum = {0:d}'.format(inum))
+  stack.pop(-1)
+  if not stack:
+    if part:
+      block_db.bulk_insert('files (inum, filename, part)', rows)
+    else:
+      block_db.bulk_insert('files (inum, filename)', rows)
 
-  if filenames:
-    filename = filenames[0][0]
-  else:
-    filename = '*None*'
-
-  return filename
-
-
-def get_resident_inum(offset, fs):
-  """Gets filename given an inode number.
-
-  Args:
-      offset: data offset within volume
-      fs: pytsk3 FS_INFO object
-
-  Returns:
-      inode number of resident data
-  """
-  block_size = fs.info.block_size
-  block = int(offset / block_size)
-
-  f = fs.open_meta(0)
-  mft_entry = 0
-  for attr in f:
-    for run in attr:
-      for j in range(run.len):
-        if run.addr + j == block:
-          mft_entry += int((offset - (block * block_size)) / 1024)
-          return mft_entry
-        else:
-          mft_entry += int(block_size / 1024)
-  return 0
+  return rows
 
 
 def get_filename_from_offset(image_path, image_hash, offset):
@@ -327,9 +252,10 @@ def get_filename_from_offset(image_path, image_hash, offset):
       offset: Byte offset within the image
 
   Returns:
-      Filename allocated the given offset
+      Filename allocated to the given offset
   """
   img = pytsk3.Img_Info(image_path)
+  # TODO(jxs): Don't hardcode sector size
   sector_offset = offset / 512
 
   db_name = ''.join(('fs', image_hash))
@@ -380,3 +306,79 @@ def get_filename_from_offset(image_path, image_hash, offset):
     return '*None*'
   else:
     return ' | '.join(filenames)
+
+
+def get_inums(block_db, block, part=None):
+  """Gets inode number from block offset.
+
+  Args:
+      block_db: PostgreSQL database
+      block: Block offset within the image
+      part: Partition number
+
+  Returns:
+      Inode number(s) of the given block or None
+  """
+  if part:
+    inums = block_db.query(
+        'SELECT inum FROM blocks WHERE block = {0:d} AND part = {1:d}'.format(
+            int(block), part))
+  else:
+    inums = block_db.execute(
+        'SELECT inum FROM blocks WHERE block = {0:d}'.format(int(block)))
+
+  return inums
+
+
+def get_resident_inum(offset, fs):
+  """Gets the inode number associated with NTFS $MFT resident data.
+
+  Args:
+      offset: Data offset within volume
+      fs: pytsk3 FS_INFO object
+
+  Returns:
+      inode number of resident data
+  """
+  block_size = fs.info.block_size
+  block = int(offset / block_size)
+
+  f = fs.open_meta(0)
+  mft_entry = 0
+  for attr in f:
+    for run in attr:
+      for j in range(run.len):
+        if run.addr + j == block:
+          # TODO(jxs): Don't hardcode MFT entry size
+          mft_entry += int((offset - (block * block_size)) / 1024)
+          return mft_entry
+        else:
+          mft_entry += int(block_size / 1024)
+  return 0
+
+
+def get_filename(block_db, inum, part=None):
+  """Gets filename given an inode number.
+
+  Args:
+      block_db: PostgreSQL database
+      inum: Inode number of target file
+      part: Partition number
+
+  Returns:
+      Filename of given inode or None
+  """
+  if part:
+    filenames = block_db.query(
+        'SELECT filename FROM files WHERE inum = {0:d} AND part = {1:d}'.format(
+            inum, part))
+  else:
+    filenames = block_db.query(
+        'SELECT filename FROM files WHERE inum = {0:d}'.format(inum))
+
+  if filenames:
+    filename = filenames[0][0]
+  else:
+    filename = '*None*'
+
+  return filename

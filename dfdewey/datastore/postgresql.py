@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 # Copyright 2020 Google Inc. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -58,7 +59,7 @@ class PostgresqlDataStore(object):
         host: Hostname or IP address of the PostgreSQL server
         port: Port of the PostgreSQL server
         db_name: Name of the database to connect to
-        autocommit: flag to set up the database connection as autocommit
+        autocommit: Flag to set up the database connection as autocommit
     """
     self.db.commit()
     self.db.close()
@@ -120,8 +121,8 @@ class PostgresqlDataStore(object):
     """Execute a bulk insert into a table.
 
     Args:
-        table_spec: string in the form 'table_name (col1, col2, ..., coln)'
-        rows: array of rows to be inserted
+        table_spec: String in the form 'table_name (col1, col2, ..., coln)'
+        rows: Array of value tuples to be inserted
     """
     extras.execute_values(
         self.cursor,
@@ -135,7 +136,7 @@ class PostgresqlDataStore(object):
         query: SQL query to execute
 
     Returns:
-        rows responsive to the query
+        Rows responsive to the query
     """
     self.cursor.execute(query)
 
@@ -148,7 +149,7 @@ class PostgresqlDataStore(object):
         query: SQL query to execute
 
     Returns:
-        single row responsive to the query
+        Single row responsive to the query
     """
     self.cursor.execute(query)
 

@@ -56,8 +56,6 @@ def parse_args():
   # Search args
   parser.add_argument('-s', '--search', help='search query')
   parser.add_argument('--search_list', help='file with search queries')
-  # parser.add_argument(
-      # '-f', '--file_lookup', help='enable file lookups', action='store_true')
 
   args = parser.parse_args()
   return args
@@ -69,11 +67,11 @@ def process_image(image_file, case, no_base64=None, no_gzip=None, no_zip=None):
   Run string extraction, indexing, and filesystem parsing for image file.
 
   Args:
-      image_file (string):  The image file to be processed
-      case (string):        Case ID
-      no_base64 (bool):     Don't decode Base64
-      no_gzip (bool):       Don't decompress gzip streams
-      no_zip (bool):        Don't decompress zip archives
+      image_file: The image file to be processed
+      case: Case ID
+      no_base64: Flag to not decode Base64
+      no_gzip: Flag to not decompress gzip streams
+      no_zip: Flag to not decompress zip archives
   """
   image_path = os.path.abspath(image_file)
   output_path = tempfile.mkdtemp()
@@ -92,21 +90,26 @@ def process_image(image_file, case, no_base64=None, no_gzip=None, no_zip=None):
 
   cmd.extend(['-S', 'strings=YES', '-S', 'word_max=1000000'])
   cmd.extend([image_path])
+
   print('Processing start: {0!s}'.format(datetime.datetime.now()))
+
   print('\n*** Running bulk extractor:\n{0:s}'.format(' '.join(cmd)))
   output = subprocess.check_output(cmd)
   md5_offset = output.index(b'MD5') + 19
   image_hash = output[md5_offset:md5_offset+32].decode('utf-8')
   print('String extraction completed: {0!s}'.format(datetime.datetime.now()))
+
   print('\n*** Parsing image')
   needs_indexing = image.initialise_block_db(image_path, image_hash, case)
   print('Parsing completed: {0!s}'.format(datetime.datetime.now()))
+
   if needs_indexing:
     print('\n*** Indexing image')
     index_strings(output_path, image_hash)
     print('Indexing completed: {0!s}'.format(datetime.datetime.now()))
   else:
     print('\n*** Image already indexed')
+
   print('Processing complete!')
 
 
@@ -114,8 +117,8 @@ def index_strings(output_path, image_hash):
   """ElasticSearch indexing function.
 
   Args:
-      output_path (string): The output directory from bulk_extractor
-      image_hash (string):  MD5 of the parsed image
+      output_path: The output directory from bulk_extractor
+      image_hash: MD5 of the parsed image
   """
   print('\n*** Indexing data...')
   es = ElasticsearchDataStore()
@@ -154,10 +157,10 @@ def index_record(es, index_name, event_type, string_record):
   """Index a single record.
 
   Args:
-      es (Elasticsearch):     Elasticsearch datastore
-      index_name (string):    UUID for the index
-      event_type (string):    Type of event being processed
-      string_record (record): String record to be indexed
+      es: Elasticsearch datastore
+      index_name: ID of the elasticsearch index
+      event_type: Type of event being processed
+      string_record: String record to be indexed
 
   Returns:
       Number of records processed
@@ -174,14 +177,14 @@ def index_record(es, index_name, event_type, string_record):
 def search(query, case, image_path=None, query_list=None):
   """Search function.
 
-  Args:
-      query (string): The query to run against the index
-      case (string): The case to query (if no specific image is provided)
-      image_path (string): Path of the source image
-      query_list (string): Path to text file containing search terms
+  Searches either the index for a single image, or indexes for all images
+  in a given case if no image_path is specified.
 
-  Returns:
-      Search results returned
+  Args:
+      query: The query to run against the index
+      case: The case to query (if no specific image is provided)
+      image_path: Optional path of the source image
+      query_list: Path to a text file containing multiple search terms
   """
   tracking_db = PostgresqlDataStore()
   images = {}
@@ -246,8 +249,8 @@ def search_index(index_id, search_query):
   """ElasticSearch search function.
 
   Args:
-      index_id (string): The ID of the index to be searched
-      search_query (string): The query to run against the index
+      index_id: The ID of the index to be searched
+      search_query: The query to run against the index
 
   Returns:
       Search results returned
