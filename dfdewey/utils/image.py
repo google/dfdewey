@@ -122,7 +122,7 @@ def populate_block_db(img, block_db, batch_size=1500):
           part.addr, part.desc.decode('utf-8')))
       if part.flags != pytsk3.TSK_VS_PART_FLAG_ALLOC:
         continue
-      fs = pytsk3.FS_Info(img, offset=part.start * 512)
+      fs = pytsk3.FS_Info(img, offset=part.start * volume.info.block_size)
       for i in range(fs.info.first_inum, fs.info.last_inum + 1):
         f = fs.open_meta(i)
         if f.info.meta.nlink > 0:
@@ -255,17 +255,18 @@ def get_filename_from_offset(image_path, image_hash, offset):
       Filename allocated to the given offset
   """
   img = pytsk3.Img_Info(image_path)
-  # TODO(jxs): Don't hardcode sector size
-  sector_offset = offset / 512
 
   db_name = ''.join(('fs', image_hash))
   block_db = PostgresqlDataStore(db_name=db_name)
 
+  device_block_size = None
   partition = None
   partition_offset = None
   unalloc_part = False
   try:
     volume = pytsk3.Volume_Info(img)
+    device_block_size = volume.info.block_size
+    sector_offset = offset / device_block_size
     for part in volume:
       if part.start <= sector_offset < part.start + part.len:
         if part.flags != pytsk3.TSK_VS_PART_FLAG_ALLOC:
@@ -281,8 +282,9 @@ def get_filename_from_offset(image_path, image_hash, offset):
       if not partition_offset:
         fs = pytsk3.FS_Info(img)
       else:
-        offset -= partition_offset * 512
-        fs = pytsk3.FS_Info(img, offset=partition_offset * 512)
+        offset -= partition_offset * device_block_size
+        fs = pytsk3.FS_Info(
+            img, offset=partition_offset * device_block_size)
     except TypeError as e:
       print(e)
     block_size = fs.info.block_size
@@ -294,7 +296,17 @@ def get_filename_from_offset(image_path, image_hash, offset):
     for i in inums:
       real_inum = i[0]
       if i[0] == 0 and fs.info.ftype == pytsk3.TSK_FS_TYPE_NTFS_DETECT:
-        real_inum = get_resident_inum(offset, fs)
+        mft_record_size_offset = 0x40
+        if partition_offset:
+          mft_record_size_offset = \
+              mft_record_size_offset + (partition_offset * device_block_size)
+        mft_record_size = int.from_bytes(
+            img.read(mft_record_size_offset, 1), 'little', signed=True)
+        if mft_record_size < 0:
+          mft_record_size = 2 ** (mft_record_size * -1)
+        else:
+          mft_record_size = mft_record_size * block_size
+        real_inum = get_resident_inum(offset, fs, mft_record_size)
       filename = get_filename(block_db, real_inum, part=partition)
       if filename and not filenames:
         filenames.append('{0:s} ({1:d})'.format(filename, real_inum))
@@ -324,18 +336,19 @@ def get_inums(block_db, block, part=None):
         'SELECT inum FROM blocks WHERE block = {0:d} AND part = {1:d}'.format(
             int(block), part))
   else:
-    inums = block_db.execute(
+    inums = block_db.query(
         'SELECT inum FROM blocks WHERE block = {0:d}'.format(int(block)))
 
   return inums
 
 
-def get_resident_inum(offset, fs):
+def get_resident_inum(offset, fs, mft_record_size):
   """Gets the inode number associated with NTFS $MFT resident data.
 
   Args:
       offset: Data offset within volume
       fs: pytsk3 FS_INFO object
+      mft_record_size: Size of an $MFT entry
 
   Returns:
       inode number of resident data
@@ -349,11 +362,10 @@ def get_resident_inum(offset, fs):
     for run in attr:
       for j in range(run.len):
         if run.addr + j == block:
-          # TODO(jxs): Don't hardcode MFT entry size
-          mft_entry += int((offset - (block * block_size)) / 1024)
+          mft_entry += int((offset - (block * block_size)) / mft_record_size)
           return mft_entry
         else:
-          mft_entry += int(block_size / 1024)
+          mft_entry += int(block_size / mft_record_size)
   return 0
 
 
