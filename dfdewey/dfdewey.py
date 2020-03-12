@@ -25,7 +25,19 @@ from datastore.postgresql import PostgresqlDataStore
 from utils import image
 
 
+STRING_INDEXING_LOG_INTERVAL = 10000000
+
+
 class _StringRecord(object):
+  """Elasticsearch string record.
+
+  Attributes:
+    image: Hash to identify the source image of the string
+    offset: Byte offset of the string within the source image
+    file_offset: If the string is extracted from a compressed stream, the byte
+        offset within the stream
+    data: The string to be indexed
+  """
 
   def __init__(self):
     self.image = ''
@@ -38,7 +50,7 @@ def parse_args():
   """Argument parsing function.
 
   Returns:
-      Arguments namespace.
+    Arguments namespace.
   """
   parser = argparse.ArgumentParser()
 
@@ -49,9 +61,9 @@ def parse_args():
   parser.add_argument(
       '--no_base64', help='don\'t decode base64', action='store_true')
   parser.add_argument(
-      '--no_gzip', help='don\'t process gzip files', action='store_true')
+      '--no_gzip', help='don\'t decompress gzip', action='store_true')
   parser.add_argument(
-      '--no_zip', help='don\'t process zip files', action='store_true')
+      '--no_zip', help='don\'t decompress zip', action='store_true')
 
   # Search args
   parser.add_argument('-s', '--search', help='search query')
@@ -61,17 +73,17 @@ def parse_args():
   return args
 
 
-def process_image(image_file, case, no_base64=None, no_gzip=None, no_zip=None):
+def process_image(image_file, case, base64, gunzip, unzip):
   """Image processing function.
 
   Run string extraction, indexing, and filesystem parsing for image file.
 
   Args:
-      image_file: The image file to be processed
-      case: Case ID
-      no_base64: Flag to not decode Base64
-      no_gzip: Flag to not decompress gzip streams
-      no_zip: Flag to not decompress zip archives
+    image_file: The image file to be processed
+    case: Case ID
+    base64: Flag to decode Base64
+    gunzip: Flag to decompress gzip
+    unzip: Flag to decompress zip
   """
   image_path = os.path.abspath(image_file)
   output_path = tempfile.mkdtemp()
@@ -81,11 +93,11 @@ def process_image(image_file, case, no_base64=None, no_gzip=None, no_zip=None):
          '-x', 'all',
          '-e', 'wordlist']
 
-  if not no_base64:
+  if base64:
     cmd.extend(['-e', 'base64'])
-  if not no_gzip:
+  if gunzip:
     cmd.extend(['-e', 'gzip'])
-  if not no_zip:
+  if unzip:
     cmd.extend(['-e', 'zip'])
 
   cmd.extend(['-S', 'strings=YES', '-S', 'word_max=1000000'])
@@ -100,10 +112,11 @@ def process_image(image_file, case, no_base64=None, no_gzip=None, no_zip=None):
   print('String extraction completed: {0!s}'.format(datetime.datetime.now()))
 
   print('\n*** Parsing image')
-  needs_indexing = image.initialise_block_db(image_path, image_hash, case)
+  image_already_processed = image.initialise_block_db(
+      image_path, image_hash, case)
   print('Parsing completed: {0!s}'.format(datetime.datetime.now()))
 
-  if needs_indexing:
+  if not image_already_processed:
     print('\n*** Indexing image')
     index_strings(output_path, image_hash)
     print('Indexing completed: {0!s}'.format(datetime.datetime.now()))
@@ -117,18 +130,19 @@ def index_strings(output_path, image_hash):
   """ElasticSearch indexing function.
 
   Args:
-      output_path: The output directory from bulk_extractor
-      image_hash: MD5 of the parsed image
+    output_path: The output directory from bulk_extractor
+    image_hash: MD5 of the parsed image
   """
   print('\n*** Indexing data...')
   es = ElasticsearchDataStore()
   index_name = ''.join(('es', image_hash))
-  index_name, event_type = es.create_index(index_name=index_name)
+  index_name = es.create_index(index_name=index_name)
   print('Index {0:s} created.'.format(index_name))
 
-  with open('/'.join((output_path, 'wordlist.txt')), 'r') as strings:
+  string_list = os.path.join(output_path, 'wordlist.txt')
+  with open(string_list, 'r') as strings:
     for line in strings:
-      if line[0] != '#':
+      if not line.startswith('#'):
         string_record = _StringRecord()
         string_record.image = image_hash
 
@@ -145,25 +159,24 @@ def index_strings(output_path, image_hash):
           string_record.offset = int(offset)
 
         string_record.data = data
-        records = index_record(es, index_name, event_type, string_record)
-        if records % 10000000 == 0:
+        records = index_record(es, index_name, string_record)
+        if records % STRING_INDEXING_LOG_INTERVAL == 0:
           print('Indexed {0:d} records...'.format(records))
 
-  records = es.import_event(index_name, event_type)
+  records = es.import_event(index_name)
   print('\n*** Indexed {0:d} strings.'.format(records))
 
 
-def index_record(es, index_name, event_type, string_record):
+def index_record(es, index_name, string_record):
   """Index a single record.
 
   Args:
-      es: Elasticsearch datastore
-      index_name: ID of the elasticsearch index
-      event_type: Type of event being processed
-      string_record: String record to be indexed
+    es: Elasticsearch datastore
+    index_name: ID of the elasticsearch index
+    string_record: String record to be indexed
 
   Returns:
-      Number of records processed
+    Number of records processed
   """
   json_record = {
       'image': string_record.image,
@@ -171,7 +184,7 @@ def index_record(es, index_name, event_type, string_record):
       'file_offset': string_record.file_offset,
       'data': string_record.data
   }
-  return es.import_event(index_name, event_type, event=json_record)
+  return es.import_event(index_name, event=json_record)
 
 
 def search(query, case, image_path=None, query_list=None):
@@ -181,17 +194,17 @@ def search(query, case, image_path=None, query_list=None):
   in a given case if no image_path is specified.
 
   Args:
-      query: The query to run against the index
-      case: The case to query (if no specific image is provided)
-      image_path: Optional path of the source image
-      query_list: Path to a text file containing multiple search terms
+    query: The query to run against the index
+    case: The case to query (if no specific image is provided)
+    image_path: Optional path of the source image
+    query_list: Path to a text file containing multiple search terms
   """
-  tracking_db = PostgresqlDataStore()
+  case_db = PostgresqlDataStore()
   images = {}
   if image_path:
     image_path = os.path.abspath(image_path)
 
-    image_hash = tracking_db.query_single_row(
+    image_hash = case_db.query_single_row(
         'SELECT image_hash FROM images WHERE image_path = \'{0:s}\''.format(
             image_path))
 
@@ -199,12 +212,12 @@ def search(query, case, image_path=None, query_list=None):
   else:
     print('No image specified, searching all images in case \'{0:s}\''.format(
         case))
-    image_hashes = tracking_db.query(
+    image_hashes = case_db.query(
         'SELECT image_hash FROM image_case WHERE case_id = \'{0:s}\''.format(
             case))
     for image_hash in image_hashes:
       image_hash = image_hash[0]
-      image_path = tracking_db.query_single_row(
+      image_path = case_db.query_single_row(
           'SELECT image_path FROM images WHERE image_hash = \'{0:s}\''.format(
               image_hash))
 
@@ -249,14 +262,14 @@ def search_index(index_id, search_query):
   """ElasticSearch search function.
 
   Args:
-      index_id: The ID of the index to be searched
-      search_query: The query to run against the index
+    index_id: The ID of the index to be searched
+    search_query: The query to run against the index
 
   Returns:
-      Search results returned
+    Search results returned
   """
   es = ElasticsearchDataStore()
-  return es.search(index_id, search_query, size=1000)
+  return es.search(index_id, search_query)
 
 
 def main():
@@ -264,7 +277,11 @@ def main():
   args = parse_args()
   if not args.search and not args.search_list:
     process_image(
-        args.image, args.case, args.no_base64, args.no_gzip, args.no_zip)
+        args.image,
+        args.case,
+        not args.no_base64,
+        not args.no_gzip,
+        not args.no_zip)
   elif args.search:
     search(args.search, args.case, args.image)
   elif args.search_list:

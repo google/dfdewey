@@ -22,12 +22,12 @@ def initialise_block_db(image_path, image_hash, case):
   """Creates a new image database.
 
   Args:
-      image_path: Path to image file
-      image_hash: MD5 of the image
-      case: Case ID
+    image_path: Path to image file
+    image_hash: MD5 of the image
+    case: Case ID
 
   Returns:
-      Boolean value to indicate whether the image needs to be processed
+    Boolean value to indicate whether the image has already been processed
   """
   img = pytsk3.Img_Info(image_path)
 
@@ -42,7 +42,7 @@ def initialise_block_db(image_path, image_hash, case):
 
     populate_block_db(img, block_db, batch_size=1500)
 
-  return not image_exists
+  return image_exists
 
 
 def check_tracking_database(tracking_db, image_path, image_hash, case):
@@ -53,13 +53,13 @@ def check_tracking_database(tracking_db, image_path, image_hash, case):
   the association.
 
   Args:
-      tracking_db: PostgreSQL database
-      image_path: Path to image file
-      image_hash: MD5 of the image
-      case: Case ID
+    tracking_db: PostgreSQL database
+    image_path: Path to image file
+    image_hash: MD5 of the image
+    case: Case ID
 
   Returns:
-      Boolean value to indicate the existence of the image
+    Boolean value to indicate the existence of the image
   """
   tables_exist = tracking_db.table_exists('images')
 
@@ -100,9 +100,9 @@ def populate_block_db(img, block_db, batch_size=1500):
   """Creates a new image block database.
 
   Args:
-      img: pytsk image info object
-      block_db: PostgreSQL database
-      batch_size: Number of rows to insert at a time
+    img: pytsk image info object
+    block_db: PostgreSQL database
+    batch_size: Number of rows to insert at a time
   """
   print('Image database does not already exist. Parsing image filesystem(s)...')
   block_db.execute(
@@ -174,15 +174,15 @@ def list_directory(
   """Recursive function to create a filesystem listing.
 
   Args:
-      block_db: PostgreSQL database
-      directory: pytsk directory object
-      part: Partition number
-      stack: Inode stack to control recursive filesystem parsing
-      rows: Array for batch database inserts
-      batch_size: Number of rows to insert at a time
+    block_db: PostgreSQL database
+    directory: pytsk directory object
+    part: Partition number
+    stack: Inode stack to control recursive filesystem parsing
+    rows: Array for batch database inserts
+    batch_size: Number of rows to insert at a time
 
   Returns:
-      Current rows array for recursion
+    Current rows array for recursion
   """
   if not stack:
     stack = []
@@ -247,12 +247,12 @@ def get_filename_from_offset(image_path, image_hash, offset):
   """Gets filename given a byte offset within an image.
 
   Args:
-      image_path: Source image path
-      image_hash: Source image hash
-      offset: Byte offset within the image
+    image_path: Source image path
+    image_hash: Source image hash
+    offset: Byte offset within the image
 
   Returns:
-      Filename allocated to the given offset
+    Filename allocated to the given offset
   """
   img = pytsk3.Img_Info(image_path)
 
@@ -324,12 +324,12 @@ def get_inums(block_db, block, part=None):
   """Gets inode number from block offset.
 
   Args:
-      block_db: PostgreSQL database
-      block: Block offset within the image
-      part: Partition number
+    block_db: PostgreSQL database
+    block: Block offset within the image
+    part: Partition number
 
   Returns:
-      Inode number(s) of the given block or None
+    Inode number(s) of the given block or None
   """
   if part:
     inums = block_db.query(
@@ -346,12 +346,12 @@ def get_resident_inum(offset, fs, mft_record_size):
   """Gets the inode number associated with NTFS $MFT resident data.
 
   Args:
-      offset: Data offset within volume
-      fs: pytsk3 FS_INFO object
-      mft_record_size: Size of an $MFT entry
+    offset: Data offset within volume
+    fs: pytsk3 FS_INFO object
+    mft_record_size: Size of an $MFT entry
 
   Returns:
-      inode number of resident data
+    inode number of resident data
   """
   block_size = fs.info.block_size
   block = int(offset / block_size)
@@ -373,12 +373,12 @@ def get_filename(block_db, inum, part=None):
   """Gets filename given an inode number.
 
   Args:
-      block_db: PostgreSQL database
-      inum: Inode number of target file
-      part: Partition number
+    block_db: PostgreSQL database
+    inum: Inode number of target file
+    part: Partition number
 
   Returns:
-      Filename of given inode or None
+    Filename of given inode or None
   """
   if part:
     filenames = block_db.query(

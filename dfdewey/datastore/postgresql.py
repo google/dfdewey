@@ -56,10 +56,10 @@ class PostgresqlDataStore(object):
     """Connects to a different database.
 
     Args:
-        host: Hostname or IP address of the PostgreSQL server
-        port: Port of the PostgreSQL server
-        db_name: Name of the database to connect to
-        autocommit: Flag to set up the database connection as autocommit
+      host: Hostname or IP address of the PostgreSQL server
+      port: Port of the PostgreSQL server
+      db_name: Name of the database to connect to
+      autocommit: Flag to set up the database connection as autocommit
     """
     self.db.commit()
     self.db.close()
@@ -78,11 +78,11 @@ class PostgresqlDataStore(object):
     """Check if a table exists in the database.
 
     Args:
-        table_name: Name of the table
-        table_schema: Table schema if different from 'public'
+      table_name: Name of the table
+      table_schema: Table schema if different from 'public'
 
     Returns:
-        True if the table already exists, otherwise False
+      True if the table already exists, otherwise False
     """
     self.cursor.execute("""
         SELECT 1 FROM information_schema.tables
@@ -95,12 +95,12 @@ class PostgresqlDataStore(object):
     """Check if a value exists in a table.
 
     Args:
-        table_name: Name of the table
-        column_name: Name of the column
-        value: Value to query for
+      table_name: Name of the table
+      column_name: Name of the column
+      value: Value to query for
 
     Returns:
-        True if the value exists, otherwise False
+      True if the value exists, otherwise False
     """
     self.cursor.execute("""
         SELECT 1 from {0:s}
@@ -113,7 +113,7 @@ class PostgresqlDataStore(object):
     """Execute a command in the PostgreSQL database.
 
     Args:
-        command: The SQL command to be executed
+      command: The SQL command to be executed
     """
     self.cursor.execute(command)
 
@@ -121,8 +121,8 @@ class PostgresqlDataStore(object):
     """Execute a bulk insert into a table.
 
     Args:
-        table_spec: String in the form 'table_name (col1, col2, ..., coln)'
-        rows: Array of value tuples to be inserted
+      table_spec: String in the form 'table_name (col1, col2, ..., coln)'
+      rows: Array of value tuples to be inserted
     """
     extras.execute_values(
         self.cursor,
@@ -133,10 +133,10 @@ class PostgresqlDataStore(object):
     """Query the database.
 
     Args:
-        query: SQL query to execute
+      query: SQL query to execute
 
     Returns:
-        Rows responsive to the query
+      Rows responsive to the query
     """
     self.cursor.execute(query)
 
@@ -146,10 +146,10 @@ class PostgresqlDataStore(object):
     """Query the database for a single row.
 
     Args:
-        query: SQL query to execute
+      query: SQL query to execute
 
     Returns:
-        Single row responsive to the query
+      Single row responsive to the query
     """
     self.cursor.execute(query)
 

@@ -33,10 +33,7 @@ class ElasticsearchDataStore(object):
 
   # Number of events to queue up when bulk inserting events.
   DEFAULT_FLUSH_INTERVAL = 20000
-  DEFAULT_SIZE = 100
-  DEFAULT_LIMIT = DEFAULT_SIZE  # Max events to return
-  DEFAULT_FROM = 0
-  DEFAULT_STREAM_LIMIT = 5000  # Max events to return when streaming results
+  DEFAULT_SIZE = 1000  # Max events to return
 
   def __init__(self, host='127.0.0.1', port=9200):
     """Create an Elasticsearch client."""
@@ -45,16 +42,15 @@ class ElasticsearchDataStore(object):
     self.import_counter = collections.Counter()
     self.import_events = []
 
-  def create_index(self, index_name, doc_type='string'):
+  def create_index(self, index_name):
     """Create an index.
 
     Args:
-        index_name: Name of the index
-        doc_type: Name of the document type
+      index_name: Name of the index
 
     Returns:
-        Index name in string format.
-        Document type in string format.
+      Index name in string format.
+      Document type in string format.
     """
     if not self.client.indices.exists(index_name):
       try:
@@ -64,16 +60,14 @@ class ElasticsearchDataStore(object):
 
     if not isinstance(index_name, six.text_type):
       index_name = codecs.decode(index_name, 'utf8')
-    if not isinstance(doc_type, six.text_type):
-      doc_type = codecs.decode(doc_type, 'utf8')
 
-    return index_name, doc_type
+    return index_name
 
   def delete_index(self, index_name):
     """Delete Elasticsearch index.
 
     Args:
-        index_name: Name of the index to delete.
+      index_name: Name of the index to delete.
     """
     if self.client.indices.exists(index_name):
       try:
@@ -83,19 +77,18 @@ class ElasticsearchDataStore(object):
             'Unable to connect to backend datastore: {}'.format(e))
 
   def import_event(
-      self, index_name, event_type, event=None,
+      self, index_name, event=None,
       event_id=None, flush_interval=DEFAULT_FLUSH_INTERVAL):
     """Add event to Elasticsearch.
 
     Args:
-        index_name: Name of the index in Elasticsearch
-        event_type: Type of event (e.g. string)
-        event: Event dictionary
-        event_id: Event Elasticsearch ID
-        flush_interval: Number of events to queue up before indexing
+      index_name: Name of the index in Elasticsearch
+      event: Event dictionary
+      event_id: Event Elasticsearch ID
+      flush_interval: Number of events to queue up before indexing
 
     Returns:
-        The number of events processed.
+      The number of events processed.
     """
     if event:
       for k, v in event.items():
@@ -111,14 +104,12 @@ class ElasticsearchDataStore(object):
       # Header needed by Elasticsearch when bulk inserting.
       header = {
           'index': {
-              '_index': index_name,
-              '_type': event_type
+              '_index': index_name
           }
       }
       update_header = {
           'update': {
               '_index': index_name,
-              '_type': event_type,
               '_id': event_id
           }
       }
@@ -145,14 +136,15 @@ class ElasticsearchDataStore(object):
 
     return self.import_counter['events']
 
-  def build_query(self, query_string):
+  @staticmethod
+  def build_query(query_string):
     """Build Elasticsearch DSL query.
 
     Args:
-        query_string: Query string
+      query_string: Query string
 
     Returns:
-        Elasticsearch DSL query as a dictionary
+      Elasticsearch DSL query as a dictionary
     """
 
     query_dsl = {
@@ -180,12 +172,12 @@ class ElasticsearchDataStore(object):
     the result back.
 
     Args:
-        index_id: Index to be searched
-        query_string: Query string
-        size: Maximum number of results to return
+      index_id: Index to be searched
+      query_string: Query string
+      size: Maximum number of results to return
 
     Returns:
-        Set of event documents in JSON format
+      Set of event documents in JSON format
     """
 
     query_dsl = self.build_query(query_string)
