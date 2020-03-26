@@ -123,13 +123,13 @@ def populate_block_db(img, block_db, batch_size=1500):
       if part.flags != pytsk3.TSK_VS_PART_FLAG_ALLOC:
         continue
       fs = pytsk3.FS_Info(img, offset=part.start * volume.info.block_size)
-      for i in range(fs.info.first_inum, fs.info.last_inum + 1):
-        f = fs.open_meta(i)
-        if f.info.meta.nlink > 0:
-          for attr in f:
+      for inode in range(fs.info.first_inum, fs.info.last_inum + 1):
+        file = fs.open_meta(inode)
+        if file.info.meta.nlink > 0:
+          for attr in file:
             for run in attr:
-              for j in range(run.len):
-                rows.append((run.addr + j, i, part.addr,))
+              for block in range(run.len):
+                rows.append((run.addr + block, inode, part.addr,))
                 if len(rows) >= batch_size:
                   block_db.bulk_insert('blocks (block, inum, part)', rows)
                   rows = []
@@ -145,14 +145,14 @@ def populate_block_db(img, block_db, batch_size=1500):
   if not has_partition_table:
     fs = pytsk3.FS_Info(img)
     rows = []
-    for i in range(fs.info.first_inum, fs.info.last_inum + 1):
+    for inode in range(fs.info.first_inum, fs.info.last_inum + 1):
       try:
-        f = fs.open_meta(i)
-        if f.info.meta.nlink > 0:
-          for attr in f:
+        file = fs.open_meta(inode)
+        if file.info.meta.nlink > 0:
+          for attr in file:
             for run in attr:
-              for j in range(run.len):
-                rows.append((run.addr + j, i,))
+              for block in range(run.len):
+                rows.append((run.addr + block, inode,))
                 if len(rows) >= batch_size:
                   block_db.bulk_insert('blocks (block, inum)', rows)
                   rows = []
@@ -191,6 +191,7 @@ def list_directory(
   stack.append(directory.info.fs_file.meta.addr)
 
   for directory_entry in directory:
+    # TODO(js): Refactor
     if (not hasattr(directory_entry, 'info') or
         not hasattr(directory_entry.info, 'name') or
         not hasattr(directory_entry.info.name, 'name') or
@@ -314,8 +315,8 @@ def get_filename_from_offset(image_path, image_hash, offset):
         if '{0:s} ({1:d})'.format(filename, real_inum) not in filenames:
           filenames.append('{0:s} ({1:d})'.format(filename, real_inum))
 
-  if filenames is None:
-    return '*None*'
+  if not filenames:
+    return 'No filenames found'
   else:
     return ' | '.join(filenames)
 
@@ -354,15 +355,16 @@ def get_resident_inum(offset, fs, mft_record_size):
     inode number of resident data
   """
   block_size = fs.info.block_size
-  block = int(offset / block_size)
+  offset_block = int(offset / block_size)
 
-  f = fs.open_meta(0)
+  inode = fs.open_meta(0)
   mft_entry = 0
-  for attr in f:
+  for attr in inode:
     for run in attr:
-      for j in range(run.len):
-        if run.addr + j == block:
-          mft_entry += int((offset - (block * block_size)) / mft_record_size)
+      for block in range(run.len):
+        if run.addr + block == offset_block:
+          mft_entry += int(
+              (offset - (offset_block * block_size)) / mft_record_size)
           return mft_entry
         else:
           mft_entry += int(block_size / mft_record_size)
@@ -391,6 +393,6 @@ def get_filename(block_db, inum, part=None):
   if filenames:
     filename = filenames[0][0]
   else:
-    filename = '*None*'
+    filename = 'No filenames found'
 
   return filename

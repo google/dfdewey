@@ -277,11 +277,8 @@ def main():
   args = parse_args()
   if not args.search and not args.search_list:
     process_image(
-        args.image,
-        args.case,
-        not args.no_base64,
-        not args.no_gzip,
-        not args.no_zip)
+        args.image, args.case,
+        not args.no_base64, not args.no_gzip, not args.no_zip)
   elif args.search:
     search(args.search, args.case, args.image)
   elif args.search_list:

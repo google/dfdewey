@@ -48,11 +48,7 @@ class PostgresqlDataStore(object):
     self.cursor = self.db.cursor()
 
   def switch_database(
-      self,
-      host='127.0.0.1',
-      port=5432,
-      db_name='dfdewey',
-      autocommit=False):
+      self, host='127.0.0.1', port=5432, db_name='dfdewey', autocommit=False):
     """Connects to a different database.
 
     Args:
@@ -136,7 +132,7 @@ class PostgresqlDataStore(object):
       query: SQL query to execute
 
     Returns:
-      Rows responsive to the query
+      Rows returned by the query
     """
     self.cursor.execute(query)
 
@@ -149,7 +145,7 @@ class PostgresqlDataStore(object):
       query: SQL query to execute
 
     Returns:
-      Single row responsive to the query
+      Single row returned by the query
     """
     self.cursor.execute(query)
 

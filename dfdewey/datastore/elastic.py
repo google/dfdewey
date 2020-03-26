@@ -161,10 +161,7 @@ class ElasticsearchDataStore(object):
 
     return query_dsl
 
-  def search(self,
-             index_id,
-             query_string,
-             size=DEFAULT_SIZE):
+  def search(self, index_id, query_string, size=DEFAULT_SIZE):
     """Search ElasticSearch.
 
     This will take a query string from the UI together with a filter definition.
