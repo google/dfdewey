@@ -1,3 +1,4 @@
-## DFDewey
+## dfDewey
 
-Proof of concept for a Digital Forensics string indexing and searching platform.
+dfDewey is a digital forensics string extraction, indexing, and searching tool.
+
