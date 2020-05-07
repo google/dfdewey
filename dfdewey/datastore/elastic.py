@@ -38,7 +38,7 @@ class ElasticsearchDataStore(object):
   def __init__(self, host='127.0.0.1', port=9200):
     """Create an Elasticsearch client."""
     super(ElasticsearchDataStore, self).__init__()
-    self.client = Elasticsearch([{'host': host, 'port': port}])
+    self.client = Elasticsearch([{'host': host, 'port': port}], timeout=30)
     self.import_counter = collections.Counter()
     self.import_events = []
 
