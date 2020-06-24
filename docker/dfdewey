@@ -1,0 +1,3 @@
+#!/bin/bash
+
+python3 /dfdewey/dfdewey/dfdewey.py "$@"

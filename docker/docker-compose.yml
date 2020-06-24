@@ -13,22 +13,6 @@
 # limitations under the License.
 version: '2'
 services:
-  # dfdewey:
-    # build:
-      # context: ../
-      # dockerfile: ./docker/Dockerfile
-    # links:
-      # - elasticsearch
-      # - postgres
-    # environment:
-      # - POSTGRES_USER=dfdewey
-      # - POSTGRES_PASSWORD=password
-      # - POSTGRES_ADDRESS=postgres
-      # - POSTGRES_PORT=5432
-      # - ELASTIC_ADDRESS=elasticsearch
-      # - ELASTIC_PORT=9200
-    # restart: always
-
   elasticsearch:
     environment:
       - discovery.type=single-node
