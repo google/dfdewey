@@ -29,5 +29,6 @@ RUN apt -y install bulk-extractor git
 RUN git clone https://github.com/google/dfdewey.git
 RUN apt -y install python3 python3-pip python3-dev
 RUN pip3 install -r dfdewey/requirements.txt
+RUN cd dfdewey && python3 setup.py install
 COPY dfdewey /usr/bin/
 RUN chmod a+x /usr/bin/dfdewey

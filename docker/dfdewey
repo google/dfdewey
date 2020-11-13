@@ -1,3 +1,3 @@
 #!/bin/bash
 
-/dfdewey/dfdewey/dfdcli.py "$@"
+python3 /dfdewey/dfdewey/dfdcli.py "$@"
