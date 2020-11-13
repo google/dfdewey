@@ -17,7 +17,7 @@ services:
     environment:
       - discovery.type=single-node
       - ES_JAVA_OPTS=-Xms32g -Xmx32g
-    image: elasticsearch:7.4.0
+    image: elasticsearch:7.9.3
     ports:
       - "127.0.0.1:9200:9200"
       - "127.0.0.1:9300:9300"
