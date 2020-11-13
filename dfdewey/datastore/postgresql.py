@@ -20,8 +20,7 @@ import psycopg2
 from psycopg2 import extras
 
 # Setup logging
-postgresql_logger = logging.getLogger('postgresql')
-postgresql_logger.addHandler(logging.NullHandler())
+postgresql_logger = logging.getLogger('dfdewey.postgresql')
 postgresql_logger.setLevel(logging.WARNING)
 
 
@@ -46,6 +45,58 @@ class PostgresqlDataStore(object):
       self.db.set_isolation_level(
           psycopg2.extensions.ISOLATION_LEVEL_AUTOCOMMIT)
     self.cursor = self.db.cursor()
+
+  def __del__(self):
+    """Finalise a PostgreSQL client."""
+    if self.db:
+      self.db.commit()
+      self.db.close()
+
+  def bulk_insert(self, table_spec, rows):
+    """Execute a bulk insert into a table.
+
+    Args:
+      table_spec: String in the form 'table_name (col1, col2, ..., coln)'
+      rows: Array of value tuples to be inserted
+    """
+    extras.execute_values(
+        self.cursor,
+        'INSERT INTO {0:s} VALUES %s'.format(table_spec),
+        rows)
+
+  def execute(self, command):
+    """Execute a command in the PostgreSQL database.
+
+    Args:
+      command: The SQL command to be executed
+    """
+    self.cursor.execute(command)
+
+  def query(self, query):
+    """Query the database.
+
+    Args:
+      query: SQL query to execute
+
+    Returns:
+      Rows returned by the query
+    """
+    self.cursor.execute(query)
+
+    return self.cursor.fetchall()
+
+  def query_single_row(self, query):
+    """Query the database for a single row.
+
+    Args:
+      query: SQL query to execute
+
+    Returns:
+      Single row returned by the query
+    """
+    self.cursor.execute(query)
+
+    return self.cursor.fetchone()
 
   def switch_database(
       self, host='127.0.0.1', port=5432, db_name='dfdewey', autocommit=False):
@@ -104,55 +155,3 @@ class PostgresqlDataStore(object):
             table_name, column_name, value))
 
     return self.cursor.fetchone()
-
-  def execute(self, command):
-    """Execute a command in the PostgreSQL database.
-
-    Args:
-      command: The SQL command to be executed
-    """
-    self.cursor.execute(command)
-
-  def bulk_insert(self, table_spec, rows):
-    """Execute a bulk insert into a table.
-
-    Args:
-      table_spec: String in the form 'table_name (col1, col2, ..., coln)'
-      rows: Array of value tuples to be inserted
-    """
-    extras.execute_values(
-        self.cursor,
-        'INSERT INTO {0:s} VALUES %s'.format(table_spec),
-        rows)
-
-  def query(self, query):
-    """Query the database.
-
-    Args:
-      query: SQL query to execute
-
-    Returns:
-      Rows returned by the query
-    """
-    self.cursor.execute(query)
-
-    return self.cursor.fetchall()
-
-  def query_single_row(self, query):
-    """Query the database for a single row.
-
-    Args:
-      query: SQL query to execute
-
-    Returns:
-      Single row returned by the query
-    """
-    self.cursor.execute(query)
-
-    return self.cursor.fetchone()
-
-  def __del__(self):
-    """Finalise a PostgreSQL client."""
-    if self.db:
-      self.db.commit()
-      self.db.close()

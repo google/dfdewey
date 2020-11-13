@@ -14,7 +14,7 @@
 # limitations under the License.
 """Image File Access Functions."""
 
-from datastore.postgresql import PostgresqlDataStore
+from dfdewey.datastore.postgresql import PostgresqlDataStore
 import pytsk3
 
 

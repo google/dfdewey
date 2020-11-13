@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 # -*- coding: utf-8 -*-
 # Copyright 2020 Google LLC
 #
@@ -20,9 +21,9 @@ import os
 import subprocess
 import tempfile
 
-from datastore.elastic import ElasticsearchDataStore
-from datastore.postgresql import PostgresqlDataStore
-from utils import image
+from dfdewey.datastore.elastic import ElasticsearchDataStore
+from dfdewey.datastore.postgresql import PostgresqlDataStore
+from dfdewey.utils import image
 
 
 STRING_INDEXING_LOG_INTERVAL = 10000000

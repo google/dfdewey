@@ -23,8 +23,7 @@ from elasticsearch import exceptions
 import six
 
 # Setup logging
-es_logger = logging.getLogger('elasticsearch')
-es_logger.addHandler(logging.NullHandler())
+es_logger = logging.getLogger('dfdewey.elasticsearch')
 es_logger.setLevel(logging.WARNING)
 
 
@@ -41,6 +40,31 @@ class ElasticsearchDataStore(object):
     self.client = Elasticsearch([{'host': host, 'port': port}], timeout=30)
     self.import_counter = collections.Counter()
     self.import_events = []
+
+  @staticmethod
+  def build_query(query_string):
+    """Build Elasticsearch DSL query.
+
+    Args:
+      query_string: Query string
+
+    Returns:
+      Elasticsearch DSL query as a dictionary
+    """
+
+    query_dsl = {
+        'query': {
+            'bool': {
+                'must': [{
+                    'query_string': {
+                        'query': query_string
+                    }
+                }]
+            }
+        }
+    }
+
+    return query_dsl
 
   def create_index(self, index_name):
     """Create an index.
@@ -135,31 +159,6 @@ class ElasticsearchDataStore(object):
         self.client.bulk(body=self.import_events)
 
     return self.import_counter['events']
-
-  @staticmethod
-  def build_query(query_string):
-    """Build Elasticsearch DSL query.
-
-    Args:
-      query_string: Query string
-
-    Returns:
-      Elasticsearch DSL query as a dictionary
-    """
-
-    query_dsl = {
-        'query': {
-            'bool': {
-                'must': [{
-                    'query_string': {
-                        'query': query_string
-                    }
-                }]
-            }
-        }
-    }
-
-    return query_dsl
 
   def search(self, index_id, query_string, size=DEFAULT_SIZE):
     """Search ElasticSearch.

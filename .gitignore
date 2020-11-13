@@ -3,8 +3,8 @@
 # Back-up files
 *~
 
-# IDE files
-.idea
+# Egg files
+/dfDewey.egg-info
 
 # Generic auto-generated build files
 *.pyc
