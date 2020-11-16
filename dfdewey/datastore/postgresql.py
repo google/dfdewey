@@ -125,7 +125,7 @@ class PostgresqlDataStore():
         WHERE table_schema = '{0:s}' AND table_name = '{1:s}'""".format(
             table_schema, table_name))
 
-    return self.cursor.fetchone()
+    return self.cursor.fetchone() is not None
 
   def value_exists(self, table_name, column_name, value):
     """Check if a value exists in a table.
@@ -143,4 +143,4 @@ class PostgresqlDataStore():
         SELECT 1 from {0:s}
         WHERE {1:s} = '{2:s}'""".format(table_name, column_name, value))
 
-    return self.cursor.fetchone()
+    return self.cursor.fetchone() is not None

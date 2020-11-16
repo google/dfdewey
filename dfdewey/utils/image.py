@@ -72,7 +72,7 @@ def check_tracking_database(tracking_db, image_path, image_hash, case):
     tracking_db.execute(
         """
         CREATE TABLE image_case (
-          case_id TEXT, image_hash TEXT REFERENCES images(image_hash), 
+          case_id TEXT, image_hash TEXT REFERENCES images(image_hash),
           PRIMARY KEY (case_id, image_hash))""")
   else:
     image_exists = tracking_db.value_exists('images', 'image_hash', image_hash)
