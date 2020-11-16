@@ -20,9 +20,13 @@ import sys
 from setuptools import find_packages
 from setuptools import setup
 
+import dfdewey
+
 sys.path.insert(0, '.')
 
-import dfdewey
+DFDEWEY_DESCRIPTION = (
+    'dfDewey is a digital forensics string extraction, indexing, and searching '
+    'tool.')
 
 requirements = []
 with open('requirements.txt','r') as f:
@@ -30,7 +34,7 @@ with open('requirements.txt','r') as f:
 setup(
     name='dfDewey',
     version=dfdewey.__version__,
-    description='dfDewey is a digital forensics string extraction, indexing, and searching tool.',
+    description=DFDEWEY_DESCRIPTION,
     license='Apache License, Version 2.0',
     maintainer='dfDewey development team',
     maintainer_email='dfdewey-dev@googlegroups.com',
@@ -38,6 +42,6 @@ setup(
     include_package_data=True,
     install_requires=requirements,
     extras_require={
-        'dev': []
+        'dev': ['mock', 'nose', 'yapf', 'coverage']
     }
 )

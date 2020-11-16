@@ -24,22 +24,15 @@ postgresql_logger = logging.getLogger('dfdewey.postgresql')
 postgresql_logger.setLevel(logging.WARNING)
 
 
-class PostgresqlDataStore(object):
+class PostgresqlDataStore():
   """Implements the datastore."""
 
   def __init__(
-      self,
-      host='127.0.0.1',
-      port=5432,
-      db_name='dfdewey',
-      autocommit=False):
+      self, host='127.0.0.1', port=5432, db_name='dfdewey', autocommit=False):
     """Create a PostgreSQL client."""
-    super(PostgresqlDataStore, self).__init__()
+    super().__init__()
     self.db = psycopg2.connect(
-        database=db_name,
-        user='dfdewey',
-        password='password',
-        host=host,
+        database=db_name, user='dfdewey', password='password', host=host,
         port=port)
     if autocommit:
       self.db.set_isolation_level(
@@ -60,9 +53,7 @@ class PostgresqlDataStore(object):
       rows: Array of value tuples to be inserted
     """
     extras.execute_values(
-        self.cursor,
-        'INSERT INTO {0:s} VALUES %s'.format(table_spec),
-        rows)
+        self.cursor, 'INSERT INTO {0:s} VALUES %s'.format(table_spec), rows)
 
   def execute(self, command):
     """Execute a command in the PostgreSQL database.
@@ -111,10 +102,7 @@ class PostgresqlDataStore(object):
     self.db.commit()
     self.db.close()
     self.db = psycopg2.connect(
-        database=db_name,
-        user='dfdewey',
-        password='password',
-        host=host,
+        database=db_name, user='dfdewey', password='password', host=host,
         port=port)
     if autocommit:
       self.db.set_isolation_level(
@@ -131,7 +119,8 @@ class PostgresqlDataStore(object):
     Returns:
       True if the table already exists, otherwise False
     """
-    self.cursor.execute("""
+    self.cursor.execute(
+        """
         SELECT 1 FROM information_schema.tables
         WHERE table_schema = '{0:s}' AND table_name = '{1:s}'""".format(
             table_schema, table_name))
@@ -149,9 +138,9 @@ class PostgresqlDataStore(object):
     Returns:
       True if the value exists, otherwise False
     """
-    self.cursor.execute("""
+    self.cursor.execute(
+        """
         SELECT 1 from {0:s}
-        WHERE {1:s} = '{2:s}'""".format(
-            table_name, column_name, value))
+        WHERE {1:s} = '{2:s}'""".format(table_name, column_name, value))
 
     return self.cursor.fetchone()

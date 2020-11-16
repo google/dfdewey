@@ -25,7 +25,6 @@ from dfdewey.datastore.elastic import ElasticsearchDataStore
 from dfdewey.datastore.postgresql import PostgresqlDataStore
 from dfdewey.utils import image
 
-
 STRING_INDEXING_LOG_INTERVAL = 10000000
 
 
@@ -89,10 +88,7 @@ def process_image(image_file, case, base64, gunzip, unzip):
   image_path = os.path.abspath(image_file)
   output_path = tempfile.mkdtemp()
 
-  cmd = ['bulk_extractor',
-         '-o', output_path,
-         '-x', 'all',
-         '-e', 'wordlist']
+  cmd = ['bulk_extractor', '-o', output_path, '-x', 'all', '-e', 'wordlist']
 
   if base64:
     cmd.extend(['-e', 'base64'])
@@ -109,7 +105,7 @@ def process_image(image_file, case, base64, gunzip, unzip):
   print('\n*** Running bulk extractor:\n{0:s}'.format(' '.join(cmd)))
   output = subprocess.check_output(cmd)
   md5_offset = output.index(b'MD5') + 19
-  image_hash = output[md5_offset:md5_offset+32].decode('utf-8')
+  image_hash = output[md5_offset:md5_offset + 32].decode('utf-8')
   print('String extraction completed: {0!s}'.format(datetime.datetime.now()))
 
   print('\n*** Parsing image')
@@ -211,8 +207,9 @@ def search(query, case, image_path=None, query_list=None):
 
     images[image_hash[0]] = image_path
   else:
-    print('No image specified, searching all images in case \'{0:s}\''.format(
-        case))
+    print(
+        'No image specified, searching all images in case \'{0:s}\''.format(
+            case))
     image_hashes = case_db.query(
         'SELECT image_hash FROM image_case WHERE case_id = \'{0:s}\''.format(
             case))
@@ -234,29 +231,28 @@ def search(query, case, image_path=None, query_list=None):
           term = ''.join(('"', term.strip(), '"'))
           results = search_index(index, term)
           if results['hits']['total']['value'] > 0:
-            print('{0:s} - {1:d} hits'.format(
-                term, results['hits']['total']['value']))
+            print(
+                '{0:s} - {1:d} hits'.format(
+                    term, results['hits']['total']['value']))
     else:
       print('\n*** Searching for \'{0:s}\'...'.format(query))
       results = search_index(index, query)
       print('Returned {0:d} results:'.format(results['hits']['total']['value']))
       for hit in results['hits']['hits']:
         filename = image.get_filename_from_offset(
-            image_path,
-            hit['_source']['image'],
-            int(hit['_source']['offset']))
+            image_path, hit['_source']['image'], int(hit['_source']['offset']))
         if hit['_source']['file_offset']:
-          print('Offset: {0:d}\tFile: {1:s}\tFile offset:{2:s}\t'
-                'String: {3:s}'.format(
-                    hit['_source']['offset'],
-                    filename,
-                    hit['_source']['file_offset'],
-                    hit['_source']['data'].strip()))
+          print(
+              'Offset: {0:d}\tFile: {1:s}\tFile offset:{2:s}\t'
+              'String: {3:s}'.format(
+                  hit['_source']['offset'], filename,
+                  hit['_source']['file_offset'],
+                  hit['_source']['data'].strip()))
         else:
-          print('Offset: {0:d}\tFile: {1:s}\tString: {2:s}'.format(
-              hit['_source']['offset'],
-              filename,
-              hit['_source']['data'].strip()))
+          print(
+              'Offset: {0:d}\tFile: {1:s}\tString: {2:s}'.format(
+                  hit['_source']['offset'], filename,
+                  hit['_source']['data'].strip()))
 
 
 def search_index(index_id, search_query):
@@ -278,8 +274,8 @@ def main():
   args = parse_args()
   if not args.search and not args.search_list:
     process_image(
-        args.image, args.case,
-        not args.no_base64, not args.no_gzip, not args.no_zip)
+        args.image, args.case, not args.no_base64, not args.no_gzip,
+        not args.no_zip)
   elif args.search:
     search(args.search, args.case, args.image)
   elif args.search_list:

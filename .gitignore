@@ -3,8 +3,15 @@
 # Back-up files
 *~
 
+# Don't include build related files.
+/build/
+/dist/
+
 # Egg files
 /dfDewey.egg-info
+
+# Test files
+.coverage
 
 # Generic auto-generated build files
 *.pyc
@@ -12,3 +19,11 @@
 
 # Specific auto-generated build files
 /__pycache__
+
+# IDE files
+.idea/
+.vscode/
+
+# Pipfile
+Pipfile
+Pipfile.lock

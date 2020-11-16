@@ -27,7 +27,7 @@ es_logger = logging.getLogger('dfdewey.elasticsearch')
 es_logger.setLevel(logging.WARNING)
 
 
-class ElasticsearchDataStore(object):
+class ElasticsearchDataStore():
   """Implements the datastore."""
 
   # Number of events to queue up when bulk inserting events.
@@ -36,7 +36,7 @@ class ElasticsearchDataStore(object):
 
   def __init__(self, host='127.0.0.1', port=9200):
     """Create an Elasticsearch client."""
-    super(ElasticsearchDataStore, self).__init__()
+    super().__init__()
     self.client = Elasticsearch([{'host': host, 'port': port}], timeout=30)
     self.import_counter = collections.Counter()
     self.import_events = []
@@ -79,8 +79,8 @@ class ElasticsearchDataStore(object):
     if not self.client.indices.exists(index_name):
       try:
         self.client.indices.create(index=index_name)
-      except exceptions.ConnectionError:
-        raise RuntimeError('Unable to connect to backend datastore.')
+      except exceptions.ConnectionError as e:
+        raise RuntimeError('Unable to connect to backend datastore.') from e
 
     if not isinstance(index_name, six.text_type):
       index_name = codecs.decode(index_name, 'utf8')
@@ -97,12 +97,11 @@ class ElasticsearchDataStore(object):
       try:
         self.client.indices.delete(index=index_name)
       except exceptions.ConnectionError as e:
-        raise RuntimeError(
-            'Unable to connect to backend datastore: {}'.format(e))
+        raise RuntimeError('Unable to connect to backend datastore.') from e
 
   def import_event(
-      self, index_name, event=None,
-      event_id=None, flush_interval=DEFAULT_FLUSH_INTERVAL):
+      self, index_name, event=None, event_id=None,
+      flush_interval=DEFAULT_FLUSH_INTERVAL):
     """Add event to Elasticsearch.
 
     Args:
@@ -126,17 +125,8 @@ class ElasticsearchDataStore(object):
         event[k] = v
 
       # Header needed by Elasticsearch when bulk inserting.
-      header = {
-          'index': {
-              '_index': index_name
-          }
-      }
-      update_header = {
-          'update': {
-              '_index': index_name,
-              '_id': event_id
-          }
-      }
+      header = {'index': {'_index': index_name}}
+      update_header = {'update': {'_index': index_name, '_id': event_id}}
 
       if event_id:
         # Event has "lang" defined if there is a script used for import.
@@ -182,7 +172,4 @@ class ElasticsearchDataStore(object):
     search_type = 'query_then_fetch'
 
     return self.client.search(
-        body=query_dsl,
-        index=index_id,
-        size=size,
-        search_type=search_type)
+        body=query_dsl, index=index_id, size=size, search_type=search_type)

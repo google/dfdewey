@@ -14,8 +14,9 @@
 # limitations under the License.
 """Image File Access Functions."""
 
-from dfdewey.datastore.postgresql import PostgresqlDataStore
 import pytsk3
+
+from dfdewey.datastore.postgresql import PostgresqlDataStore
 
 
 def initialise_block_db(image_path, image_hash, case):
@@ -68,7 +69,8 @@ def check_tracking_database(tracking_db, image_path, image_hash, case):
     tracking_db.execute(
         'CREATE TABLE images (image_path TEXT, image_hash TEXT PRIMARY KEY)')
 
-    tracking_db.execute("""
+    tracking_db.execute(
+        """
         CREATE TABLE image_case (
           case_id TEXT, image_hash TEXT REFERENCES images(image_hash), 
           PRIMARY KEY (case_id, image_hash))""")
@@ -77,7 +79,8 @@ def check_tracking_database(tracking_db, image_path, image_hash, case):
 
   image_case_exists = False
   if image_exists:
-    image_case = tracking_db.query_single_row("""
+    image_case = tracking_db.query_single_row(
+        """
         SELECT 1 from image_case
         WHERE image_hash = '{0:s}' AND case_id = '{1:s}'""".format(
             image_hash, case))
@@ -85,11 +88,13 @@ def check_tracking_database(tracking_db, image_path, image_hash, case):
       image_case_exists = True
 
   if not image_exists:
-    tracking_db.execute("""
+    tracking_db.execute(
+        """
         INSERT INTO images (image_path, image_hash)
         VALUES ('{0:s}', '{1:s}')""".format(image_path, image_hash))
   if not image_case_exists:
-    tracking_db.execute("""
+    tracking_db.execute(
+        """
         INSERT INTO image_case (case_id, image_hash)
         VALUES ('{0:s}', '{1:s}')""".format(case, image_hash))
 
@@ -118,18 +123,25 @@ def populate_block_db(img, block_db, batch_size=1500):
       has_partition_table = True
     rows = []
     for part in volume:
-      print('Parsing partition {0:d}: {1:s}'.format(
-          part.addr, part.desc.decode('utf-8')))
+      print(
+          'Parsing partition {0:d}: {1:s}'.format(
+              part.addr, part.desc.decode('utf-8')))
       if part.flags != pytsk3.TSK_VS_PART_FLAG_ALLOC:
         continue
-      fs = pytsk3.FS_Info(img, offset=part.start * volume.info.block_size)
-      for inode in range(fs.info.first_inum, fs.info.last_inum + 1):
-        file = fs.open_meta(inode)
+      filesystem = pytsk3.FS_Info(
+          img, offset=part.start * volume.info.block_size)
+      for inode in range(filesystem.info.first_inum,
+                         filesystem.info.last_inum + 1):
+        file = filesystem.open_meta(inode)
         if file.info.meta.nlink > 0:
           for attr in file:
             for run in attr:
               for block in range(run.len):
-                rows.append((run.addr + block, inode, part.addr,))
+                rows.append((
+                    run.addr + block,
+                    inode,
+                    part.addr,
+                ))
                 if len(rows) >= batch_size:
                   block_db.bulk_insert('blocks (block, inum, part)', rows)
                   rows = []
@@ -137,22 +149,26 @@ def populate_block_db(img, block_db, batch_size=1500):
         block_db.bulk_insert('blocks (block, inum, part)', rows)
 
       # File names
-      directory = fs.open_dir(path='/')
+      directory = filesystem.open_dir(path='/')
       list_directory(block_db, directory, part=part.addr, batch_size=batch_size)
   except IOError:
     pass
 
   if not has_partition_table:
-    fs = pytsk3.FS_Info(img)
+    filesystem = pytsk3.FS_Info(img)
     rows = []
-    for inode in range(fs.info.first_inum, fs.info.last_inum + 1):
+    for inode in range(filesystem.info.first_inum,
+                       filesystem.info.last_inum + 1):
       try:
-        file = fs.open_meta(inode)
+        file = filesystem.open_meta(inode)
         if file.info.meta.nlink > 0:
           for attr in file:
             for run in attr:
               for block in range(run.len):
-                rows.append((run.addr + block, inode,))
+                rows.append((
+                    run.addr + block,
+                    inode,
+                ))
                 if len(rows) >= batch_size:
                   block_db.bulk_insert('blocks (block, inum)', rows)
                   rows = []
@@ -162,7 +178,7 @@ def populate_block_db(img, block_db, batch_size=1500):
         continue
 
     # File names
-    directory = fs.open_dir(path='/')
+    directory = filesystem.open_dir(path='/')
     list_directory(block_db, directory, batch_size=batch_size)
 
   block_db.execute('CREATE INDEX blocks_index ON blocks (block, part);')
@@ -205,15 +221,19 @@ def list_directory(
       print('Unable to decode: {}'.format(directory_entry.info.name.name))
       continue
     if part:
-      rows.append((directory_entry.info.meta.addr,
-                   name.replace('\'', '\'\''),
-                   part,))
+      rows.append((
+          directory_entry.info.meta.addr,
+          name.replace('\'', '\'\''),
+          part,
+      ))
       if len(rows) >= batch_size:
         block_db.bulk_insert('files (inum, filename, part)', rows)
         rows = []
     else:
-      rows.append((directory_entry.info.meta.addr,
-                   name.replace('\'', '\'\''),))
+      rows.append((
+          directory_entry.info.meta.addr,
+          name.replace('\'', '\'\''),
+      ))
       if len(rows) >= batch_size:
         block_db.bulk_insert('files (inum, filename)', rows)
         rows = []
@@ -224,11 +244,7 @@ def list_directory(
 
       if inode not in stack:
         rows = list_directory(
-            block_db,
-            sub_directory,
-            part=part,
-            stack=stack,
-            rows=rows,
+            block_db, sub_directory, part=part, stack=stack, rows=rows,
             batch_size=batch_size)
 
     except IOError:
@@ -281,14 +297,14 @@ def get_filename_from_offset(image_path, image_hash, offset):
   if not unalloc_part:
     try:
       if not partition_offset:
-        fs = pytsk3.FS_Info(img)
+        filesystem = pytsk3.FS_Info(img)
       else:
         offset -= partition_offset * device_block_size
-        fs = pytsk3.FS_Info(
+        filesystem = pytsk3.FS_Info(
             img, offset=partition_offset * device_block_size)
     except TypeError as e:
       print(e)
-    block_size = fs.info.block_size
+    block_size = filesystem.info.block_size
 
     inums = get_inums(block_db, offset / block_size, part=partition)
 
@@ -296,7 +312,7 @@ def get_filename_from_offset(image_path, image_hash, offset):
   if inums:
     for i in inums:
       real_inum = i[0]
-      if i[0] == 0 and fs.info.ftype == pytsk3.TSK_FS_TYPE_NTFS_DETECT:
+      if i[0] == 0 and filesystem.info.ftype == pytsk3.TSK_FS_TYPE_NTFS_DETECT:
         mft_record_size_offset = 0x40
         if partition_offset:
           mft_record_size_offset = \
@@ -304,10 +320,10 @@ def get_filename_from_offset(image_path, image_hash, offset):
         mft_record_size = int.from_bytes(
             img.read(mft_record_size_offset, 1), 'little', signed=True)
         if mft_record_size < 0:
-          mft_record_size = 2 ** (mft_record_size * -1)
+          mft_record_size = 2**(mft_record_size * -1)
         else:
           mft_record_size = mft_record_size * block_size
-        real_inum = get_resident_inum(offset, fs, mft_record_size)
+        real_inum = get_resident_inum(offset, filesystem, mft_record_size)
       filename = get_filename(block_db, real_inum, part=partition)
       if filename and not filenames:
         filenames.append('{0:s} ({1:d})'.format(filename, real_inum))
@@ -343,21 +359,21 @@ def get_inums(block_db, block, part=None):
   return inums
 
 
-def get_resident_inum(offset, fs, mft_record_size):
+def get_resident_inum(offset, filesystem, mft_record_size):
   """Gets the inode number associated with NTFS $MFT resident data.
 
   Args:
     offset: Data offset within volume
-    fs: pytsk3 FS_INFO object
+    filesystem: pytsk3 FS_INFO object
     mft_record_size: Size of an $MFT entry
 
   Returns:
     inode number of resident data
   """
-  block_size = fs.info.block_size
+  block_size = filesystem.info.block_size
   offset_block = int(offset / block_size)
 
-  inode = fs.open_meta(0)
+  inode = filesystem.open_meta(0)
   mft_entry = 0
   for attr in inode:
     for run in attr:
