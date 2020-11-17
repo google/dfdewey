@@ -34,18 +34,23 @@ class PostgresqlTest(unittest.TestCase):
     return db
 
   @mock.patch('psycopg2.extras.execute_values')
-  def test_bulk_insert(self, _):
+  def test_bulk_insert(self, mock_execute_values):
     """Test bulk insert method."""
     db = self._get_datastore()
     rows = [(1, 1), (2, 2), (3, 3)]
     db.bulk_insert('blocks (block, inum)', rows)
+
+    expected_sql = 'INSERT INTO blocks (block, inum) VALUES %s'
+    mock_execute_values.assert_called_once_with(db.cursor, expected_sql, rows)
 
   def test_execute(self):
     """Test execute method."""
     db = self._get_datastore()
     command = (
         'CREATE TABLE images (image_path TEXT, image_hash TEXT PRIMARY KEY)')
-    db.execute(command)
+    with mock.patch.object(db.cursor, 'execute') as mock_execute:
+      db.execute(command)
+      mock_execute.assert_called_once_with(command)
 
   def test_query(self):
     """Test query method."""
@@ -70,8 +75,11 @@ class PostgresqlTest(unittest.TestCase):
   def test_switch_database(self):
     """Test switch database method."""
     db = self._get_datastore()
-    with mock.patch('psycopg2.connect') as _:
+    with mock.patch('psycopg2.connect') as mock_connect:
       db.switch_database(db_name='dfdewey', autocommit=True)
+      mock_connect.assert_called_once_with(
+          database='dfdewey', user='dfdewey', password='password',
+          host='127.0.0.1', port=5432)
 
   def test_table_exists(self):
     """Test table exists method."""
