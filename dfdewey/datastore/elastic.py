@@ -74,7 +74,6 @@ class ElasticsearchDataStore():
 
     Returns:
       Index name in string format.
-      Document type in string format.
     """
     if not self.client.indices.exists(index_name):
       try:
@@ -100,41 +99,30 @@ class ElasticsearchDataStore():
         raise RuntimeError('Unable to connect to backend datastore.') from e
 
   def import_event(
-      self, index_name, event=None, event_id=None,
-      flush_interval=DEFAULT_FLUSH_INTERVAL):
+      self, index_name, event=None, flush_interval=DEFAULT_FLUSH_INTERVAL):
     """Add event to Elasticsearch.
 
     Args:
       index_name: Name of the index in Elasticsearch
       event: Event dictionary
-      event_id: Event Elasticsearch ID
       flush_interval: Number of events to queue up before indexing
 
     Returns:
       The number of events processed.
     """
     if event:
-      for k, v in event.items():
-        if not isinstance(k, six.text_type):
-          k = codecs.decode(k, 'utf8')
+      for key, value in event.items():
+        if not isinstance(key, six.text_type):
+          key = codecs.decode(key, 'utf8')
 
         # Make sure we have decoded strings in the event dict.
-        if isinstance(v, six.binary_type):
-          v = codecs.decode(v, 'utf8')
+        if isinstance(value, six.binary_type):
+          value = codecs.decode(value, 'utf8')
 
-        event[k] = v
+        event[key] = value
 
       # Header needed by Elasticsearch when bulk inserting.
       header = {'index': {'_index': index_name}}
-      update_header = {'update': {'_index': index_name, '_id': event_id}}
-
-      if event_id:
-        # Event has "lang" defined if there is a script used for import.
-        if event.get('lang'):
-          event = {'script': event}
-        else:
-          event = {'doc': event}
-        header = update_header
 
       self.import_events.append(header)
       self.import_events.append(event)
@@ -171,5 +159,6 @@ class ElasticsearchDataStore():
     # Default search type for elasticsearch is query_then_fetch.
     search_type = 'query_then_fetch'
 
+    # pylint: disable=unexpected-keyword-arg
     return self.client.search(
         body=query_dsl, index=index_id, size=size, search_type=search_type)
