@@ -31,7 +31,7 @@ class PostgresqlTest(unittest.TestCase):
     """
     with mock.patch('psycopg2.connect') as _:
       db = PostgresqlDataStore(autocommit=True)
-      return db
+    return db
 
   @mock.patch('psycopg2.extras.execute_values')
   def test_bulk_insert(self, _):
@@ -70,7 +70,8 @@ class PostgresqlTest(unittest.TestCase):
   def test_switch_database(self):
     """Test switch database method."""
     db = self._get_datastore()
-    db.switch_database(db_name='dfdewey', autocommit=True)
+    with mock.patch('psycopg2.connect') as _:
+      db.switch_database(db_name='dfdewey', autocommit=True)
 
   def test_table_exists(self):
     """Test table exists method."""
