@@ -31,6 +31,8 @@ DFDEWEY_DESCRIPTION = (
 requirements = []
 with open('requirements.txt','r') as f:
   requirements = f.read().splitlines()
+with open('dfvfs_requirements.txt','r') as f:
+  requirements.extend(f.read().splitlines())
 setup(
     name='dfDewey',
     version=dfdewey.__version__,

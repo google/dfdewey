@@ -40,7 +40,7 @@ class PostgresqlTest(unittest.TestCase):
     rows = [(1, 1), (2, 2), (3, 3)]
     db.bulk_insert('blocks (block, inum)', rows)
 
-    expected_sql = 'INSERT INTO blocks (block, inum) VALUES %s'
+    expected_sql = 'INSERT INTO blocks (block, inum) VALUES %s ON CONFLICT DO NOTHING'
     mock_execute_values.assert_called_once_with(db.cursor, expected_sql, rows)
 
   def test_execute(self):

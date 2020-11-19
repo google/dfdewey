@@ -1,3 +1,4 @@
+dfvfs
 elasticsearch
 psycopg2-binary
 pytsk3
