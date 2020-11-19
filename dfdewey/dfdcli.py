@@ -66,7 +66,7 @@ def main():
   else:
     index_searcher = IndexSearcher(args.case, args.image)
     if args.search:
-      pass
+      index_searcher.search(args.search)
     elif args.search_list:
       pass
 
