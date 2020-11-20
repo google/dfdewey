@@ -14,14 +14,8 @@
 # limitations under the License.
 """PostgreSQL datastore."""
 
-import logging
-
 import psycopg2
 from psycopg2 import extras
-
-# Setup logging
-postgresql_logger = logging.getLogger('dfdewey.postgresql')
-postgresql_logger.setLevel(logging.WARNING)
 
 
 class PostgresqlDataStore():
@@ -31,9 +25,12 @@ class PostgresqlDataStore():
       self, host='127.0.0.1', port=5432, db_name='dfdewey', autocommit=False):
     """Create a PostgreSQL client."""
     super().__init__()
-    self.db = psycopg2.connect(
-        database=db_name, user='dfdewey', password='password', host=host,
-        port=port)
+    try:
+      self.db = psycopg2.connect(
+          database=db_name, user='dfdewey', password='password', host=host,
+          port=port)
+    except psycopg2.OperationalError as e:
+      raise RuntimeError('Unable to connect to PostgreSQL.') from e
     if autocommit:
       self.db.set_isolation_level(
           psycopg2.extensions.ISOLATION_LEVEL_AUTOCOMMIT)
@@ -41,9 +38,11 @@ class PostgresqlDataStore():
 
   def __del__(self):
     """Finalise a PostgreSQL client."""
-    if self.db:
+    try:
       self.db.commit()
       self.db.close()
+    except AttributeError:
+      pass
 
   def bulk_insert(self, table_spec, rows):
     """Execute a bulk insert into a table.
@@ -53,7 +52,9 @@ class PostgresqlDataStore():
       rows: Array of value tuples to be inserted
     """
     extras.execute_values(
-        self.cursor, 'INSERT INTO {0:s} VALUES %s'.format(table_spec), rows)
+        self.cursor,
+        'INSERT INTO {0:s} VALUES %s ON CONFLICT DO NOTHING'.format(table_spec),
+        rows)
 
   def execute(self, command):
     """Execute a command in the PostgreSQL database.

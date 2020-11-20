@@ -16,15 +16,10 @@
 
 import codecs
 import collections
-import logging
 
 from elasticsearch import Elasticsearch
 from elasticsearch import exceptions
 import six
-
-# Setup logging
-es_logger = logging.getLogger('dfdewey.elasticsearch')
-es_logger.setLevel(logging.WARNING)
 
 
 class ElasticsearchDataStore():
@@ -137,6 +132,17 @@ class ElasticsearchDataStore():
         self.client.bulk(body=self.import_events)
 
     return self.import_counter['events']
+
+  def index_exists(self, index_name):
+    """Check if an index already exists.
+
+    Args:
+      index_name: Name of the index
+
+    Returns:
+      True if the index exists, False if not.
+    """
+    return self.client.indices.exists(index_name)
 
   def search(self, index_id, query_string, size=DEFAULT_SIZE):
     """Search ElasticSearch.

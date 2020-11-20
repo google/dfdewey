@@ -1,0 +1,284 @@
+# -*- coding: utf-8 -*-
+# Copyright 2020 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+"""Index searcher."""
+
+import logging
+import os
+
+from dfvfs.lib import errors as dfvfs_errors
+import pytsk3
+from tabulate import tabulate
+
+from dfdewey.datastore.elastic import ElasticsearchDataStore
+from dfdewey.datastore.postgresql import PostgresqlDataStore
+from dfdewey.utils.image_processor import (
+    FileEntryScanner, UnattendedVolumeScannerMediator)
+
+log = logging.getLogger('dfdewey.index_searcher')
+
+
+class _SearchHit():
+  """Search result.
+
+  Attributes:
+    offset: byte offset of the string within the source image.
+    filename: filename containing the string if applicable.
+    data: the responsive string.
+  """
+
+  def __init__(self):
+    self.offset = 0
+    self.filename = None
+    self.data = ''
+
+  def copy_to_dict(self):
+    """Copies the search hit to a dictionary.
+
+    Returns:
+      dict[str, object]: search hit attributes.
+    """
+    search_hit_dict = {}
+    search_hit_dict['Offset'] = self.offset
+    search_hit_dict['Filename (inode)'] = self.filename
+    search_hit_dict['String'] = self.data
+
+    return search_hit_dict
+
+
+class IndexSearcher():
+  """Index Searcher class."""
+
+  def __init__(self, case, image):
+    """Create an index searcher."""
+    super().__init__()
+    self.case = case
+    self.elasticsearch = ElasticsearchDataStore()
+    self.image = image
+    self.images = {}
+    self.postgresql = PostgresqlDataStore()
+    self.scanner = None
+
+    if image != 'all':
+      self.image = os.path.abspath(self.image)
+      self._get_image_hash()
+    else:
+      self._get_case_images()
+
+  def _get_case_images(self):
+    """Get all images for the case.
+
+    Returns:
+      A dictionary of the images in the case.
+    """
+    images = self.postgresql.query((
+        'SELECT image_hash, image_path FROM image_case NATURAL JOIN images '
+        'WHERE case_id = \'{0:s}\'').format(self.case))
+    for image_hash, image_path in images:
+      self.images[image_hash] = image_path
+
+  def _get_filenames_from_inode(self, inode, location):
+    """Gets filename(s) from an inode number.
+
+    Args:
+      inode: Inode number of target file
+      location: Partition number
+
+    Returns:
+      Filename of given inode or None
+    """
+    results = self.postgresql.query((
+        'SELECT filename FROM files '
+        'WHERE inum = {0:d} AND part = \'{1:s}\'').format(inode, location))
+    filenames = []
+    for result in results:
+      filenames.append(result[0])
+    return filenames
+
+  def _get_filename_from_offset(self, image_path, image_hash, offset):
+    """Gets filename given a byte offset within an image.
+
+    Args:
+      image_path: source image path.
+      image_hash: source image hash.
+      offset: byte offset within the image.
+
+    Returns:
+      Filename allocated to the given offset, or None.
+    """
+    filenames = []
+
+    database_name = ''.join(('fs', image_hash))
+    self.postgresql.switch_database(db_name=database_name)
+
+    volume_extents = {}
+    try:
+      if not self.scanner:
+        mediator = UnattendedVolumeScannerMediator()
+        self.scanner = FileEntryScanner(mediator=mediator)
+      volume_extents = self.scanner.get_volume_extents(image_path)
+    except dfvfs_errors.ScannerError as e:
+      log.error('Error scanning for partitions: %s', e)
+
+    hit_location = None
+    partition_offset = None
+    for location, extent in volume_extents.items():
+      if not extent['end']:
+        # Image is of a single volume
+        hit_location = location
+        partition_offset = extent['start']
+      elif extent['start'] <= offset < extent['end']:
+        hit_location = location
+        partition_offset = extent['start']
+
+    if partition_offset is not None:
+      try:
+        img = pytsk3.Img_Info(image_path)
+        filesystem = pytsk3.FS_Info(img, offset=partition_offset)
+        block_size = filesystem.info.block_size
+      except TypeError as e:
+        log.error('Error opening image: %s', e)
+
+      inodes = self._get_inodes(
+          int((offset - partition_offset) / block_size), hit_location)
+
+      if inodes:
+        for i in inodes:
+          inode = i[0]
+          # Account for resident files
+          if (i[0] == 0 and
+              filesystem.info.ftype == pytsk3.TSK_FS_TYPE_NTFS_DETECT):
+            mft_record_size_offset = 0x40 + partition_offset
+            mft_record_size = int.from_bytes(
+                img.read(mft_record_size_offset, 1), 'little', signed=True)
+            if mft_record_size < 0:
+              mft_record_size = 2**(mft_record_size * -1)
+            else:
+              mft_record_size = mft_record_size * block_size
+            inode = self._get_ntfs_resident_inode((offset - partition_offset),
+                                                  filesystem, mft_record_size)
+
+          inode_filenames = self._get_filenames_from_inode(inode, hit_location)
+          filename = ' | '.join(inode_filenames)
+          filenames.append('{0:s} ({1:d})'.format(filename, inode))
+
+    return filenames
+
+  def _get_image_hash(self):
+    """Get an image hash from the datastore.
+
+    Returns:
+      MD5 hash for the image stored in PostgreSQL.
+    """
+    image_hash = self.postgresql.query_single_row(
+        'SELECT image_hash FROM images WHERE image_path = \'{0:s}\''.format(
+            self.image))
+    if image_hash:
+      self.images[image_hash[0]] = self.image
+
+  def _get_inodes(self, block, location):
+    """Gets inode numbers for a block offset.
+
+    Args:
+      block (int): block offset within the image.
+      location (str): Partition location / identifier.
+
+    Returns:
+      Inode number(s) of the given block or None.
+    """
+    inodes = self.postgresql.query(
+        ('SELECT inum FROM blocks '
+         'WHERE block = {0:d} AND part = \'{1:s}\'').format(block, location))
+    return inodes
+
+  def _get_ntfs_resident_inode(self, offset, filesystem, mft_record_size):
+    """Gets the inode number associated with NTFS $MFT resident data.
+
+    Args:
+      offset: data offset within volume.
+      filesystem: pytsk3 FS_INFO object.
+      mft_record_size: size of each $MFT entry.
+
+    Returns:
+      inode number of resident data
+    """
+    block_size = filesystem.info.block_size
+    offset_block = int(offset / block_size)
+
+    inode = filesystem.open_meta(0)
+    mft_entry = 0
+    for attr in inode:
+      for run in attr:
+        for block in range(run.len):
+          if run.addr + block == offset_block:
+            mft_entry += int(
+                (offset - (offset_block * block_size)) / mft_record_size)
+            return mft_entry
+          mft_entry += int(block_size / mft_record_size)
+    return 0
+
+  def list_search(self, query_list):
+    """Query a list of search terms.
+
+    Args:
+      query_list (str): path to a text file containing multiple search terms.
+    """
+    for image_hash, image_path in self.images.items():
+      index = ''.join(('es', image_hash))
+      with open(query_list, 'r') as search_terms:
+        table_data = []
+        for term in search_terms:
+          term = ''.join(('"', term.strip(), '"'))
+          results = self.elasticsearch.search(index, term)
+          hit_count = results['hits']['total']['value']
+          if hit_count > 0:
+            table_data.append({'Search term': term, 'Hits': hit_count})
+      if table_data:
+        output = tabulate(table_data, headers='keys', tablefmt='simple')
+      else:
+        output = 'No results.'
+      log.info(
+          'Searched %s (%s) for terms in %s\n\n%s\n', image_path, image_hash,
+          query_list, output)
+
+  def search(self, query):
+    """Run a single query.
+
+    Args:
+      query (str): query to run.
+    """
+    for image_hash, image_path in self.images.items():
+      log.info('Searching %s (%s) for "%s"', image_path, image_hash, query)
+      index = ''.join(('es', image_hash))
+      results = self.elasticsearch.search(index, query)
+      result_count = results['hits']['total']['value']
+      time_taken = results['took']
+
+      results = results['hits']['hits']
+      hits = []
+      for result in results:
+        hit = _SearchHit()
+        offset = str(result['_source']['offset'])
+        if result['_source']['file_offset']:
+          offset = '-'.join((offset, result['_source']['file_offset']))
+        hit.offset = offset
+        filenames = self._get_filename_from_offset(
+            image_path, image_hash, result['_source']['offset'])
+        hit.filename = '\n'.join(filenames)
+        hit.data = result['_source']['data'].strip()
+        hits.append(hit.copy_to_dict())
+      output = tabulate(hits, headers='keys', tablefmt='simple')
+      log.info(
+          'Returned %d results in %dms.\n\n%s\n', result_count, time_taken,
+          output)
