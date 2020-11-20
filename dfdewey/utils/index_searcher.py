@@ -16,6 +16,7 @@
 
 import logging
 import os
+import textwrap
 
 from dfvfs.lib import errors as dfvfs_errors
 import pytsk3
@@ -170,7 +171,7 @@ class IndexSearcher():
                                                   filesystem, mft_record_size)
 
           inode_filenames = self._get_filenames_from_inode(inode, hit_location)
-          filename = ' | '.join(inode_filenames)
+          filename = '\n'.join(inode_filenames)
           filenames.append('{0:s} ({1:d})'.format(filename, inode))
 
     return filenames
@@ -276,7 +277,8 @@ class IndexSearcher():
         filenames = self._get_filename_from_offset(
             image_path, image_hash, result['_source']['offset'])
         hit.filename = '\n'.join(filenames)
-        hit.data = result['_source']['data'].strip()
+        hit.data = textwrap.wrap(result['_source']['data'].strip())
+        hit.data = '\n'.join(hit.data)
         hits.append(hit.copy_to_dict())
       output = tabulate(hits, headers='keys', tablefmt='simple')
       log.info(
