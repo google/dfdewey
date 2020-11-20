@@ -24,6 +24,7 @@ from dfvfs.helpers import volume_scanner
 from dfvfs.lib import definitions as dfvfs_definitions
 from dfvfs.lib import errors as dfvfs_errors
 from dfvfs.resolver import resolver
+from dfvfs.volume import tsk_volume_system
 import pytsk3
 
 from dfdewey.datastore.elastic import ElasticsearchDataStore
@@ -71,6 +72,7 @@ class FileEntryScanner(volume_scanner.VolumeScanner):
     self._datastore = None
     self._list_only_files = False
     self._rows = []
+    self._volumes = {}
 
   def _get_display_path(self, path_spec, path_segments, data_stream_name):
     """Retrieves a path to display.
@@ -115,6 +117,24 @@ class FileEntryScanner(volume_scanner.VolumeScanner):
     else:
       inode = getattr(path_spec, 'inode', None)
     return inode
+
+  def _get_tsk_partition_path_spec(self, path_spec):
+    """Gets the path spec for the TSK partition.
+
+    Args:
+      path_spec (dfvfs.PathSpec): path spec of the volume.
+
+    Returns:
+      TSK partition path_spec or None.
+    """
+    partition_path_spec = None
+    while path_spec.HasParent():
+      type_indicator = path_spec.type_indicator
+      if type_indicator == dfvfs_definitions.TYPE_INDICATOR_TSK_PARTITION:
+        partition_path_spec = path_spec
+        break
+      path_spec = path_spec.parent
+    return partition_path_spec
 
   def _get_volume_location(self, path_spec):
     """Gets volume location / identifier for the given path spec.
@@ -173,6 +193,46 @@ class FileEntryScanner(volume_scanner.VolumeScanner):
     for sub_file_entry in file_entry.sub_file_entries:
       self._list_file_entry(
           file_system, sub_file_entry, path_segments, location)
+
+  def get_volume_extents(self, image_path):
+    """Gets the extents of all volumes.
+
+    Args:
+      image_path (str): path of the source image.
+
+    Returns:
+      Volume location / identifier, offset, and size for all volumes.
+    """
+    if not self._volumes or self._source_path != image_path:
+      base_path_specs = self.GetBasePathSpecs(image_path)
+
+      for path_spec in base_path_specs:
+        partition_path_spec = self._get_tsk_partition_path_spec(path_spec)
+        if not partition_path_spec:
+          location = getattr(path_spec, 'location', None)
+          self._volumes[location] = {'start': 0, 'end': None}
+        else:
+          location = getattr(partition_path_spec, 'location', None)
+          partition_offset = None
+          partition_size = None
+
+          volume_system = tsk_volume_system.TSKVolumeSystem()
+          try:
+            volume_system.Open(partition_path_spec)
+            volume_identifier = location.replace('/', '')
+            volume = volume_system.GetVolumeByIdentifier(volume_identifier)
+
+            partition_offset = volume.extents[0].offset
+            partition_size = volume.extents[0].size
+          except dfvfs_errors.VolumeSystemError as e:
+            log.error('Could not process partition: %s', e)
+
+          self._volumes[location] = {
+              'start': partition_offset,
+              'end': partition_offset + partition_size
+          }
+
+    return self._volumes
 
   def parse_file_entries(self, base_path_specs, datastore):
     """Parses file entries in the base path specification.
