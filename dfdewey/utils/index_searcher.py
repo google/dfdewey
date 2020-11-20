@@ -228,6 +228,30 @@ class IndexSearcher():
           mft_entry += int(block_size / mft_record_size)
     return 0
 
+  def list_search(self, query_list):
+    """Query a list of search terms.
+
+    Args:
+      query_list (str): path to a text file containing multiple search terms.
+    """
+    for image_hash, image_path in self.images.items():
+      index = ''.join(('es', image_hash))
+      with open(query_list, 'r') as search_terms:
+        table_data = []
+        for term in search_terms:
+          term = ''.join(('"', term.strip(), '"'))
+          results = self.elasticsearch.search(index, term)
+          hit_count = results['hits']['total']['value']
+          if hit_count > 0:
+            table_data.append({'Search term': term, 'Hits': hit_count})
+      if table_data:
+        output = tabulate(table_data, headers='keys', tablefmt='simple')
+      else:
+        output = 'No results.'
+      log.info(
+          'Searched %s (%s) for terms in %s\n\n%s\n', image_path, image_hash,
+          query_list, output)
+
   def search(self, query):
     """Run a single query.
 
@@ -256,4 +280,5 @@ class IndexSearcher():
         hits.append(hit.copy_to_dict())
       output = tabulate(hits, headers='keys', tablefmt='simple')
       log.info(
-          'Returned %d results in %dms.\n%s', result_count, time_taken, output)
+          'Returned %d results in %dms.\n\n%s\n', result_count, time_taken,
+          output)

@@ -68,7 +68,7 @@ def main():
     if args.search:
       index_searcher.search(args.search)
     elif args.search_list:
-      pass
+      index_searcher.list_search(args.search_list)
 
 
 def parse_args():
