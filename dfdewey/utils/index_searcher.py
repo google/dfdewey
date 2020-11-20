@@ -23,7 +23,8 @@ from tabulate import tabulate
 
 from dfdewey.datastore.elastic import ElasticsearchDataStore
 from dfdewey.datastore.postgresql import PostgresqlDataStore
-from dfdewey.utils.image_processor import FileEntryScanner, UnattendedVolumeScannerMediator
+from dfdewey.utils.image_processor import (
+    FileEntryScanner, UnattendedVolumeScannerMediator)
 
 log = logging.getLogger('dfdewey.index_searcher')
 
