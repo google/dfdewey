@@ -1,0 +1,13 @@
+language: python
+python:
+  - '3.8'
+cache:
+  - pip
+
+install:
+  - pip install mock nose yapf coverage
+  - pip install .
+  - pip install -r dfvfs_requirements.txt
+
+script:
+  - ./run_tests.py
