@@ -229,6 +229,21 @@ class IndexSearcher():
           mft_entry += int(block_size / mft_record_size)
     return 0
 
+  def _wrap_filenames(self, filenames, width=50):
+    """Wrap filenames for tabular output.
+
+    Args:
+      filenames (List[str]): list of filenames to wrap.
+      width (int): target string length.
+
+    Returns:
+      List of wrapped filenames.
+    """
+    for i in range(len(filenames)):
+      filename = textwrap.wrap(filenames[i], width, replace_whitespace=False)
+      filenames[i] = '\n'.join(filename)
+    return filenames
+
   def list_search(self, query_list):
     """Query a list of search terms.
 
@@ -272,15 +287,22 @@ class IndexSearcher():
         hit = _SearchHit()
         offset = str(result['_source']['offset'])
         if result['_source']['file_offset']:
-          offset = '-'.join((offset, result['_source']['file_offset']))
+          streams = result['_source']['file_offset'].split('-')
+          file_offset = []
+          for i in range(0, len(streams), 2):
+            stream = '-'.join((streams[i], streams[i + 1]))
+            file_offset.append(stream)
+          file_offset = '\n'.join(file_offset)
+          offset = '\n'.join((offset, file_offset))
         hit.offset = offset
         filenames = self._get_filename_from_offset(
             image_path, image_hash, result['_source']['offset'])
+        filenames = self._wrap_filenames(filenames)
         hit.filename = '\n'.join(filenames)
-        hit.data = textwrap.wrap(result['_source']['data'].strip())
+        hit.data = textwrap.wrap(result['_source']['data'].strip(), 110)
         hit.data = '\n'.join(hit.data)
         hits.append(hit.copy_to_dict())
-      output = tabulate(hits, headers='keys', tablefmt='simple')
+      output = tabulate(hits, headers='keys', tablefmt='fancy_grid')
       log.info(
           'Returned %d results in %dms.\n\n%s\n', result_count, time_taken,
           output)
