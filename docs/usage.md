@@ -29,6 +29,10 @@ folder.
 docker-compose up -d
 ```
 
+Note: Java memory for Elasticsearch is set high to improve performance when
+indexing large volumes of data. If running on a system with limited resources,
+you can change the setting in `docker/docker-compose.yml`.
+
 To shut the containers down again (and purge the data), run:
 
 ```shell

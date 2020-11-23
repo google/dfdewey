@@ -16,6 +16,11 @@ services:
   elasticsearch:
     environment:
       - discovery.type=single-node
+      # Java memory for Elasticsearch is set high for better performance when
+      # indexing large volumes of data.
+      # If running on a system with less available memory, consider using
+      # something smaller, such as:
+      # - ES_JAVA_OPTS=-Xms512m -Xmx512m
       - ES_JAVA_OPTS=-Xms32g -Xmx32g
     image: elasticsearch:7.9.3
     ports:
