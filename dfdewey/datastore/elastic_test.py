@@ -17,6 +17,8 @@
 import unittest
 import mock
 
+from elasticsearch import exceptions
+
 from dfdewey.datastore.elastic import ElasticsearchDataStore
 
 TEST_INDEX_NAME = ''.join(('es', 'd41d8cd98f00b204e9800998ecf8427e'))
@@ -57,7 +59,7 @@ class ElasticTest(unittest.TestCase):
 
   @mock.patch('elasticsearch.client.IndicesClient.create')
   @mock.patch('elasticsearch.client.IndicesClient.exists')
-  def test_create_index(self, mock_exists, _):
+  def test_create_index(self, mock_exists, mock_create):
     """Test create index method."""
     es = self._get_datastore()
 
@@ -65,6 +67,10 @@ class ElasticTest(unittest.TestCase):
 
     result = es.create_index(TEST_INDEX_NAME)
     self.assertEqual(result, TEST_INDEX_NAME)
+
+    mock_create.side_effect = exceptions.ConnectionError
+    with self.assertRaises(RuntimeError):
+      result = es.create_index(TEST_INDEX_NAME)
 
   @mock.patch('elasticsearch.client.IndicesClient.delete')
   @mock.patch('elasticsearch.client.IndicesClient.exists')
@@ -76,6 +82,10 @@ class ElasticTest(unittest.TestCase):
 
     es.delete_index(TEST_INDEX_NAME)
     mock_delete.assert_called_once_with(index=TEST_INDEX_NAME)
+
+    mock_delete.side_effect = exceptions.ConnectionError
+    with self.assertRaises(RuntimeError):
+      es.delete_index(TEST_INDEX_NAME)
 
   def test_import_event(self):
     """Test import event method."""
@@ -121,6 +131,14 @@ class ElasticTest(unittest.TestCase):
       }
       result = es.import_event(TEST_INDEX_NAME, test_event, flush_interval=1)
       self.assertEqual(result, 1)
+
+  @mock.patch('elasticsearch.client.IndicesClient.exists')
+  def test_index_exists(self, mock_exists):
+    """Test index exists method."""
+    es = self._get_datastore()
+
+    es.index_exists(TEST_INDEX_NAME)
+    mock_exists.assert_called_once_with(TEST_INDEX_NAME)
 
   @mock.patch('elasticsearch.Elasticsearch.search')
   @mock.patch('elasticsearch.client.IndicesClient.exists')
