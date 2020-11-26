@@ -33,7 +33,6 @@ class ElasticTest(unittest.TestCase):
     Returns:
       Mock elasticsearch datastore.
     """
-    # with mock.patch('psycopg2.connect') as _:
     es = ElasticsearchDataStore()
     return es
 

@@ -20,7 +20,7 @@ import logging
 import os
 import sys
 
-from dfdewey.utils.image_processor import ImageProcessorOptions, ImageProcessor
+from dfdewey.utils.image_processor import ImageProcessor, ImageProcessorOptions
 from dfdewey.utils.index_searcher import IndexSearcher
 
 STRING_INDEXING_LOG_INTERVAL = 10000000
