@@ -106,16 +106,6 @@ class ElasticsearchDataStore():
       The number of events processed.
     """
     if event:
-      for key, value in event.items():
-        if not isinstance(key, six.text_type):
-          key = codecs.decode(key, 'utf8')
-
-        # Make sure we have decoded strings in the event dict.
-        if isinstance(value, six.binary_type):
-          value = codecs.decode(value, 'utf8')
-
-        event[key] = value
-
       # Header needed by Elasticsearch when bulk inserting.
       header = {'index': {'_index': index_name}}
 
