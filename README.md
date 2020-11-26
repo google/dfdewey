@@ -27,5 +27,7 @@ sudo docker-compose up -d
 Note: To stop the containers (and purge the stored data) run
 `sudo docker-compose down` from the `dfdewey/docker` directory.
 
-All other requirements can be installed using pip:
-`pip install -r requirements.txt`
+All other requirements are installed with:
+`python setup.py install`
+
+Note: It's recommended to install dfDewey within a virtual environment.
