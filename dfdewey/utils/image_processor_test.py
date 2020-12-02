@@ -23,7 +23,7 @@ from dfvfs.path import factory as path_spec_factory
 import mock
 
 from dfdewey.utils.image_processor import (
-    _StringRecord, ImageProcessor, ImageProcessorOptions)
+    _StringRecord, FileEntryScanner, ImageProcessor, ImageProcessorOptions)
 
 TEST_CASE = 'testcase'
 TEST_IMAGE = 'test.dd'
@@ -214,6 +214,52 @@ class ImageProcessorTest(unittest.TestCase):
         index_name=''.join(('es', TEST_IMAGE_HASH)))
     self.assertEqual(mock_index_record.call_count, 3)
     mock_import_event.assert_called_once()
+
+  @mock.patch('psycopg2.connect')
+  @mock.patch('dfdewey.utils.image_processor.ImageProcessor._already_parsed')
+  @mock.patch(
+      'dfdewey.datastore.postgresql.PostgresqlDataStore.switch_database')
+  @mock.patch('dfdewey.datastore.postgresql.PostgresqlDataStore.execute')
+  @mock.patch('dfdewey.datastore.postgresql.PostgresqlDataStore.bulk_insert')
+  def test_parse_filesystems(
+      self, mock_bulk_insert, mock_execute, mock_switch_database,
+      mock_already_parsed, _):
+    """Test parse filesystems method."""
+    image_processor = self._get_image_processor()
+
+    # Test image already parsed
+    mock_already_parsed.return_value = True
+    image_processor._parse_filesystems()
+    mock_execute.assert_not_called()
+
+    # Test image not parsed
+    current_path = os.path.abspath(os.path.dirname(__file__))
+    image_processor.image_path = os.path.join(
+        current_path, '..', '..', 'test_data', 'test.dd')
+    mock_already_parsed.return_value = False
+    image_processor._parse_filesystems()
+    self.assertEqual(mock_execute.call_count, 3)
+    mock_switch_database.assert_called_once_with(
+        db_name=''.join(('fs', TEST_IMAGE_HASH)))
+    self.assertIsInstance(image_processor.scanner, FileEntryScanner)
+    self.assertEqual(len(image_processor.path_specs), 2)
+    ntfs_path_spec = image_processor.path_specs[0]
+    tsk_path_spec = image_processor.path_specs[1]
+    self.assertEqual(
+        ntfs_path_spec.type_indicator, dfvfs_definitions.TYPE_INDICATOR_NTFS)
+    self.assertEqual(
+        tsk_path_spec.type_indicator, dfvfs_definitions.TYPE_INDICATOR_TSK)
+    self.assertEqual(mock_bulk_insert.call_count, 48)
+    # Check number of blocks inserted for p1
+    self.assertEqual(len(mock_bulk_insert.mock_calls[0].args[1]), 639)
+    # Check number of files inserted for p1
+    self.assertEqual(len(mock_bulk_insert.mock_calls[1].args[1]), 21)
+    # Check number of blocks inserted for p3
+    for mock_call in mock_bulk_insert.mock_calls[2:46]:
+      self.assertEqual(len(mock_call.args[1]), 1500)
+    self.assertEqual(len(mock_bulk_insert.mock_calls[46].args[1]), 1113)
+    # Check number of files inserted for p3
+    self.assertEqual(len(mock_bulk_insert.mock_calls[47].args[1]), 4)
 
 
 if __name__ == '__main__':

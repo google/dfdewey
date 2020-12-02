@@ -179,7 +179,8 @@ class FileEntryScanner(volume_scanner.VolumeScanner):
         ))
         for data_stream in file_entry.data_streams:
           if not data_stream.IsDefault():
-            filename = ':'.join((filename, data_stream.name))
+            filename = self._get_display_path(
+                file_entry.path_spec, path_segments, data_stream.name)
             self._rows.append((
                 inode,
                 filename,
