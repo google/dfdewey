@@ -261,6 +261,28 @@ class ImageProcessorTest(unittest.TestCase):
     # Check number of files inserted for p3
     self.assertEqual(len(mock_bulk_insert.mock_calls[47].args[1]), 4)
 
+    # Test missing image
+    image_processor.image_path = TEST_IMAGE
+    image_processor.path_specs = []
+    image_processor._parse_filesystems()
+
+    # Test unsupported volume
+    image_processor.image_path = os.path.join(
+        current_path, '..', '..', 'test_data', 'test.dmg')
+    image_processor._parse_filesystems()
+
+  @mock.patch('dfdewey.utils.image_processor.ImageProcessor._parse_filesystems')
+  @mock.patch('dfdewey.utils.image_processor.ImageProcessor._index_strings')
+  @mock.patch('dfdewey.utils.image_processor.ImageProcessor._extract_strings')
+  def test_process_image(
+      self, mock_extract_strings, mock_index_strings, mock_parse_filesystems):
+    """Test process image method."""
+    image_processor = self._get_image_processor()
+    image_processor.process_image()
+    mock_extract_strings.assert_called_once()
+    mock_index_strings.assert_called_once()
+    mock_parse_filesystems.assert_called_once()
+
 
 if __name__ == '__main__':
   unittest.main()
