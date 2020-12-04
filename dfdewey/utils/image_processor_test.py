@@ -23,11 +23,49 @@ from dfvfs.path import factory as path_spec_factory
 import mock
 
 from dfdewey.utils.image_processor import (
-    _StringRecord, FileEntryScanner, ImageProcessor, ImageProcessorOptions)
+    _StringRecord, FileEntryScanner, ImageProcessor, ImageProcessorOptions,
+    UnattendedVolumeScannerMediator)
 
 TEST_CASE = 'testcase'
 TEST_IMAGE = 'test.dd'
 TEST_IMAGE_HASH = 'd41d8cd98f00b204e9800998ecf8427e'
+
+
+class FileEntryScannerTest(unittest.TestCase):
+  """Tests for file entry scanner."""
+
+  def _get_file_entry_scanner(self):
+    """Get a test file entry scanner.
+
+    Returns:
+      Test file entry scanner.
+    """
+    mediator = UnattendedVolumeScannerMediator()
+    scanner = FileEntryScanner(mediator=mediator)
+    return scanner
+
+  @mock.patch('dfdewey.datastore.postgresql.PostgresqlDataStore')
+  def test_parse_file_entries(self, mock_datastore):
+    """Test parse file entries method."""
+    scanner = self._get_file_entry_scanner()
+    current_path = os.path.abspath(os.path.dirname(__file__))
+    image_path = os.path.join(
+        current_path, '..', '..', 'test_data', 'test_volume.dd')
+    path_specs = scanner.GetBasePathSpecs(image_path)
+    scanner.parse_file_entries(path_specs, mock_datastore)
+    self.assertEqual(mock_datastore.bulk_insert.call_count, 2)
+    insert_calls = mock_datastore.bulk_insert.mock_calls
+    self.assertEqual(len(insert_calls[0].args[1]), 1500)
+    self.assertEqual(len(insert_calls[1].args[1]), 3)
+
+    # Test APFS
+    mock_datastore.reset_mock()
+    scanner = self._get_file_entry_scanner()
+    image_path = os.path.join(current_path, '..', '..', 'test_data', 'test.dmg')
+    path_specs = scanner.GetBasePathSpecs(image_path)
+    self.assertEqual(getattr(path_specs[0].parent, 'location', None), '/apfs1')
+    scanner.parse_file_entries(path_specs, mock_datastore)
+    mock_datastore.bulk_insert.assert_not_called()
 
 
 class ImageProcessorTest(unittest.TestCase):
