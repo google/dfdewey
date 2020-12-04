@@ -46,7 +46,6 @@ class IndexSearcherTest(unittest.TestCase):
   @mock.patch('dfdewey.datastore.postgresql.PostgresqlDataStore.query')
   def test_get_case_images(self, mock_query):
     """Test get case images method."""
-    index_searcher = self._get_index_searcher()
     mock_query.return_value = [(
         'hash1',
         'image1.dd',
@@ -54,7 +53,8 @@ class IndexSearcherTest(unittest.TestCase):
         'hash2',
         'image2.dd',
     )]
-    index_searcher._get_case_images()
+    with mock.patch('psycopg2.connect'):
+      index_searcher = IndexSearcher(TEST_CASE, 'all')
     self.assertEqual(index_searcher.images['hash1'], 'image1.dd')
     self.assertEqual(index_searcher.images['hash2'], 'image2.dd')
 
@@ -99,13 +99,96 @@ class IndexSearcherTest(unittest.TestCase):
     mock_get_filenames_from_inode.assert_called_once_with(67, '/p1')
     self.assertEqual(filenames, ['adams.txt (67)'])
 
+    # Test volume image
+    mock_get_inodes.reset_mock()
+    mock_get_inodes.return_value = [(2,)]
+    mock_get_filenames_from_inode.reset_mock()
+    mock_get_filenames_from_inode.return_value = []
+    image_path = os.path.join(
+        current_path, '..', '..', 'test_data', 'test_volume.dd')
+    filenames = index_searcher._get_filenames_from_offset(
+        image_path, TEST_IMAGE_HASH, 334216)
+    mock_get_inodes.assert_called_once_with(326, '/')
+    mock_get_filenames_from_inode.assert_called_once_with(2, '/')
+    self.assertEqual(filenames, [' (2)'])
+
     # Test missing image
     index_searcher.scanner = None
     filenames = index_searcher._get_filenames_from_offset(
         'test.dd', TEST_IMAGE_HASH, 1048579)
     self.assertEqual(filenames, [])
 
-    # TODO: Test volume image
+  def test_wrap_filenames(self):
+    """Test wrap filenames method."""
+    index_searcher = self._get_index_searcher()
+    filenames = ['aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa']
+    filenames = index_searcher._wrap_filenames(filenames, width=20)
+    expected_filenames = [
+        'aaaaaaaaaaaaaaaaaaaa\naaaaaaaaaaaaaaaaaaaa\naaaaaaaaaaaaaaaaaaaa'
+    ]
+    self.assertEqual(filenames, expected_filenames)
+
+  @mock.patch('logging.Logger.info')
+  @mock.patch('dfdewey.datastore.elastic.ElasticsearchDataStore.search')
+  def test_list_search(self, mock_search, mock_output):
+    """Test list search."""
+    index_searcher = self._get_index_searcher()
+    index_searcher.images = {TEST_IMAGE_HASH: TEST_IMAGE}
+    current_path = os.path.abspath(os.path.dirname(__file__))
+    query_list = os.path.join(
+        current_path, '..', '..', 'test_data', 'wordlist.txt')
+    mock_search.return_value = {'hits': {'total': {'value': 1}}}
+    index_searcher.list_search(query_list)
+    self.assertEqual(mock_search.call_count, 8)
+    mock_output.assert_called_once()
+    self.assertEqual(mock_output.call_args.args[1], TEST_IMAGE)
+    self.assertEqual(mock_output.call_args.args[2], TEST_IMAGE_HASH)
+    self.assertEqual(mock_output.call_args.args[3], query_list)
+
+    # Test no results
+    mock_output.reset_mock()
+    mock_search.return_value = {'hits': {'total': {'value': 0}}}
+    index_searcher.list_search(query_list)
+    mock_output.assert_called_once()
+    self.assertEqual(mock_output.call_args.args[4], 'No results.')
+
+  @mock.patch('logging.Logger.info')
+  @mock.patch('dfdewey.datastore.postgresql.PostgresqlDataStore')
+  @mock.patch('dfdewey.datastore.elastic.ElasticsearchDataStore.search')
+  def test_search(self, mock_search, mock_postgresql, mock_output):
+    """Test search method."""
+    index_searcher = self._get_index_searcher()
+    current_path = os.path.abspath(os.path.dirname(__file__))
+    image_path = os.path.join(current_path, '..', '..', 'test_data', 'test.dd')
+    index_searcher.images = {TEST_IMAGE_HASH: image_path}
+    index_searcher.postgresql = mock_postgresql
+    mock_search.return_value = {
+        'took': 2,
+        'hits': {
+            'total': {
+                'value': 1
+            },
+            'hits': [{
+                '_source': {
+                    'offset': 12889600,
+                    'file_offset': 'GZIP-0',
+                    'data': 'test'
+                }
+            }]
+        }
+    }
+    index_searcher.search('test')
+    mock_search.assert_called_once()
+    output_calls = mock_output.mock_calls
+    self.assertEqual(output_calls[0].args[1], image_path)
+    self.assertEqual(output_calls[0].args[2], TEST_IMAGE_HASH)
+    self.assertEqual(output_calls[0].args[3], 'test')
+    self.assertEqual(output_calls[1].args[1], 1)
+    self.assertEqual(output_calls[1].args[2], 2)
+    table_output = output_calls[1].args[3]
+    self.assertEqual(table_output[137:145], '12889600')
+    self.assertEqual(table_output[169:173], 'test')
+    self.assertEqual(table_output[182:188], 'GZIP-0')
 
 
 if __name__ == '__main__':
