@@ -97,7 +97,7 @@ class IndexSearcher():
       location: Partition number
 
     Returns:
-      Filename of given inode or None
+      Filename(s) of given inode or None
     """
     results = self.postgresql.query((
         'SELECT filename FROM files '
@@ -107,8 +107,8 @@ class IndexSearcher():
       filenames.append(result[0])
     return filenames
 
-  def _get_filename_from_offset(self, image_path, image_hash, offset):
-    """Gets filename given a byte offset within an image.
+  def _get_filenames_from_offset(self, image_path, image_hash, offset):
+    """Gets filename(s) given a byte offset within an image.
 
     Args:
       image_path: source image path.
@@ -116,7 +116,7 @@ class IndexSearcher():
       offset: byte offset within the image.
 
     Returns:
-      Filename allocated to the given offset, or None.
+      Filename(s) allocated to the given offset, or None.
     """
     filenames = []
 
@@ -295,7 +295,7 @@ class IndexSearcher():
           file_offset = '\n'.join(file_offset)
           offset = '\n'.join((offset, file_offset))
         hit.offset = offset
-        filenames = self._get_filename_from_offset(
+        filenames = self._get_filenames_from_offset(
             image_path, image_hash, result['_source']['offset'])
         filenames = self._wrap_filenames(filenames)
         hit.filename = '\n'.join(filenames)

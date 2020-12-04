@@ -1,0 +1,8 @@
+# BANNER FILE NOT PROVIDED (-b option)
+# BULK_EXTRACTOR-Version: 1.6.0 ($Rev: 10844 $)
+# Feature-Recorder: wordlist
+# Filename: test.dd
+# Feature-File-Version: 1.1
+2681139	            Quoth the Raven 
+2681170	Nevermore.
+19998720-ZIP-516	I doubted if I should ever come back.
