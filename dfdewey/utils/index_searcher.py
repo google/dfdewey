@@ -16,6 +16,7 @@
 
 import logging
 import os
+import re
 import textwrap
 
 from dfvfs.lib import errors as dfvfs_errors
@@ -26,6 +27,10 @@ from dfdewey.datastore.elastic import ElasticsearchDataStore
 from dfdewey.datastore.postgresql import PostgresqlDataStore
 from dfdewey.utils.image_processor import (
     FileEntryScanner, UnattendedVolumeScannerMediator)
+
+DATA_COLUMN_WIDTH = 110
+TEXT_HIGHLIGHT = '\u001b[31m\u001b[1m'
+TEXT_RESET = '\u001b[0m'
 
 log = logging.getLogger('dfdewey.index_searcher')
 
@@ -229,6 +234,59 @@ class IndexSearcher():
           mft_entry += int(block_size / mft_record_size)
     return 0
 
+  def _highlight_hit(self, data, hit_positions):
+    """Highlight search term in hit data.
+
+    Args:
+      data (str): responsive strings.
+      query (str): search term.
+
+    Returns:
+      Highlighted strings.
+    """
+    lengths = []
+    for string in data:
+      lengths.append(len(string))
+    for hit in reversed(list(hit_positions)):
+      complete = False
+      i = 0
+      hit_start = hit.start()
+      hit_end = hit.end()
+      while hit_start > lengths[i]:
+        hit_start -= lengths[i] + 1
+        hit_end -= lengths[i] + 1
+        i += 1
+      new_data = []
+      new_data.append(data[i][:hit_start])
+      new_data.append(TEXT_HIGHLIGHT)
+      if hit_end <= lengths[i]:
+        new_data.append(data[i][hit_start:hit_end])
+        new_data.append(TEXT_RESET)
+        new_data.append(data[i][hit_end:])
+        complete = True
+      else:
+        new_data.append(data[i][hit_start:])
+        new_data.append(TEXT_RESET)
+      data[i] = ''.join(new_data)
+      while hit_end > lengths[i]:
+        hit_end -= lengths[i] + 1
+        i += 1
+        if hit_end > lengths[i]:
+          new_data = []
+          new_data.append(TEXT_HIGHLIGHT)
+          new_data.append(data[i])
+          new_data.append(TEXT_RESET)
+          data[i] = ''.join(new_data)
+      if not complete:
+        new_data = []
+        new_data.append(TEXT_HIGHLIGHT)
+        new_data.append(data[i][:hit_end])
+        new_data.append(TEXT_RESET)
+        new_data.append(data[i][hit_end:])
+        data[i] = ''.join(new_data)
+
+    return data
+
   def _wrap_filenames(self, filenames, width=50):
     """Wrap filenames for tabular output.
 
@@ -299,10 +357,15 @@ class IndexSearcher():
             image_path, image_hash, result['_source']['offset'])
         filenames = self._wrap_filenames(filenames)
         hit.filename = '\n'.join(filenames)
-        hit.data = textwrap.wrap(result['_source']['data'].strip(), 110)
+        hit.data = result['_source']['data'].strip()
+        re_query = query.replace('*', '.*')
+        re_query = re_query.replace('?', '.')
+        hit_positions = re.finditer(re_query, hit.data, re.IGNORECASE)
+        hit.data = textwrap.wrap(hit.data, DATA_COLUMN_WIDTH)
+        hit.data = self._highlight_hit(hit.data, hit_positions)
         hit.data = '\n'.join(hit.data)
         hits.append(hit.copy_to_dict())
-      output = tabulate(hits, headers='keys', tablefmt='fancy_grid')
+      output = tabulate(hits, headers='keys', tablefmt='simple')
       log.info(
           'Returned %d results in %dms.\n\n%s\n', result_count, time_taken,
           output)
