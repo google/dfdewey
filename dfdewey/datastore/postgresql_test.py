@@ -15,7 +15,9 @@
 """Tests for PostgreSQL datastore."""
 
 import unittest
+
 import mock
+from psycopg2 import OperationalError
 
 from dfdewey.datastore.postgresql import PostgresqlDataStore
 
@@ -40,7 +42,9 @@ class PostgresqlTest(unittest.TestCase):
     rows = [(1, 1), (2, 2), (3, 3)]
     db.bulk_insert('blocks (block, inum)', rows)
 
-    expected_sql = 'INSERT INTO blocks (block, inum) VALUES %s ON CONFLICT DO NOTHING'
+    expected_sql = (
+        'INSERT INTO blocks (block, inum) '
+        'VALUES %s ON CONFLICT DO NOTHING')
     mock_execute_values.assert_called_once_with(db.cursor, expected_sql, rows)
 
   def test_execute(self):
@@ -51,6 +55,13 @@ class PostgresqlTest(unittest.TestCase):
     with mock.patch.object(db.cursor, 'execute') as mock_execute:
       db.execute(command)
       mock_execute.assert_called_once_with(command)
+
+  @mock.patch('psycopg2.connect')
+  def test_init(self, mock_connect):
+    """Test init method."""
+    mock_connect.side_effect = OperationalError
+    with self.assertRaises(RuntimeError):
+      db = PostgresqlDataStore()
 
   def test_query(self):
     """Test query method."""

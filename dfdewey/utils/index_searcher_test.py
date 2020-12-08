@@ -15,6 +15,7 @@
 """Tests for index searcher."""
 
 import os
+import re
 import unittest
 
 import mock
@@ -118,15 +119,25 @@ class IndexSearcherTest(unittest.TestCase):
         'test.dd', TEST_IMAGE_HASH, 1048579)
     self.assertEqual(filenames, [])
 
-  def test_wrap_filenames(self):
-    """Test wrap filenames method."""
+  def test_highlight_hit(self):
+    """Test highlight hit method."""
     index_searcher = self._get_index_searcher()
-    filenames = ['aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa']
-    filenames = index_searcher._wrap_filenames(filenames, width=20)
-    expected_filenames = [
-        'aaaaaaaaaaaaaaaaaaaa\naaaaaaaaaaaaaaaaaaaa\naaaaaaaaaaaaaaaaaaaa'
-    ]
-    self.assertEqual(filenames, expected_filenames)
+    data = 'test1 test2 test3'
+    hit_positions = re.finditer('test3', data)
+    wrapped_data = ['test1', 'test2', 'test3']
+    result = index_searcher._highlight_hit(wrapped_data, hit_positions)
+    self.assertEqual(
+        result, ['test1', 'test2', '\u001b[31m\u001b[1mtest3\u001b[0m'])
+
+    hit_positions = re.finditer('st1 test2 te', data)
+    wrapped_data = ['test1', 'test2', 'test3']
+    result = index_searcher._highlight_hit(wrapped_data, hit_positions)
+    self.assertEqual(
+        result, [
+            'te\u001b[31m\u001b[1mst1\u001b[0m',
+            '\u001b[31m\u001b[1mtest2\u001b[0m',
+            '\u001b[31m\u001b[1mte\u001b[0mst3'
+        ])
 
   @mock.patch('logging.Logger.info')
   @mock.patch('dfdewey.datastore.elastic.ElasticsearchDataStore.search')
@@ -186,9 +197,19 @@ class IndexSearcherTest(unittest.TestCase):
     self.assertEqual(output_calls[1].args[1], 1)
     self.assertEqual(output_calls[1].args[2], 2)
     table_output = output_calls[1].args[3]
-    self.assertEqual(table_output[137:145], '12889600')
-    self.assertEqual(table_output[169:173], 'test')
-    self.assertEqual(table_output[182:188], 'GZIP-0')
+    self.assertEqual(table_output[76:84], '12889600')
+    self.assertEqual(table_output[106:123], '\u001b[31m\u001b[1mtest\u001b[0m')
+    self.assertEqual(table_output[124:130], 'GZIP-0')
+
+  def test_wrap_filenames(self):
+    """Test wrap filenames method."""
+    index_searcher = self._get_index_searcher()
+    filenames = ['aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa']
+    filenames = index_searcher._wrap_filenames(filenames, width=20)
+    expected_filenames = [
+        'aaaaaaaaaaaaaaaaaaaa\naaaaaaaaaaaaaaaaaaaa\naaaaaaaaaaaaaaaaaaaa'
+    ]
+    self.assertEqual(filenames, expected_filenames)
 
 
 if __name__ == '__main__':
