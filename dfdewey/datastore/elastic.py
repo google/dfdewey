@@ -14,12 +14,10 @@
 # limitations under the License.
 """Elasticsearch datastore."""
 
-import codecs
 import collections
 
 from elasticsearch import Elasticsearch
 from elasticsearch import exceptions
-import six
 
 
 class ElasticsearchDataStore():
@@ -75,9 +73,6 @@ class ElasticsearchDataStore():
         self.client.indices.create(index=index_name)
       except exceptions.ConnectionError as e:
         raise RuntimeError('Unable to connect to backend datastore.') from e
-
-    if not isinstance(index_name, six.text_type):
-      index_name = codecs.decode(index_name, 'utf8')
 
     return index_name
 

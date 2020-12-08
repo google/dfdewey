@@ -253,6 +253,23 @@ class ImageProcessorTest(unittest.TestCase):
     self.assertEqual(mock_index_record.call_count, 3)
     mock_import_event.assert_called_once()
 
+  @mock.patch('dfdewey.datastore.postgresql.PostgresqlDataStore')
+  def test_initialise_database(self, mock_postgresql):
+    """Test initialise database method."""
+    image_processor = self._get_image_processor()
+    image_processor.postgresql = mock_postgresql
+    calls = [
+        mock.call(
+            'CREATE TABLE images (image_path TEXT, image_hash TEXT PRIMARY KEY)'
+        ),
+        mock.call((
+            'CREATE TABLE image_case ('
+            'case_id TEXT, image_hash TEXT REFERENCES images(image_hash), '
+            'PRIMARY KEY (case_id, image_hash))'))
+    ]
+    image_processor._initialise_database()
+    mock_postgresql.execute.assert_has_calls(calls)
+
   @mock.patch('psycopg2.connect')
   @mock.patch('dfdewey.utils.image_processor.ImageProcessor._already_parsed')
   @mock.patch(
