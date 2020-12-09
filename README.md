@@ -1,6 +1,8 @@
 # dfDewey
 dfDewey is a digital forensics string extraction, indexing, and searching tool.
 
+<img src="https://user-images.githubusercontent.com/52063018/101560727-fc827900-3a17-11eb-93a1-f2a0589b6b6b.png" width="240" />
+
 [Usage](docs/usage.md)
 
 ## Requirements
