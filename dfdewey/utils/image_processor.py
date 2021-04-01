@@ -476,6 +476,8 @@ class ImageProcessor():
       self._create_filesystem_database()
 
       # Scan image for volumes
+      dfvfs_definitions.PREFERRED_GPT_BACK_END = (
+          dfvfs_definitions.TYPE_INDICATOR_GPT)
       mediator = UnattendedVolumeScannerMediator()
       try:
         self.scanner = FileEntryScanner(mediator=mediator)
@@ -498,6 +500,7 @@ class ImageProcessor():
         else:
           log.warning(
               'Volume type %s is not supported.', path_spec.type_indicator)
+      self.postgresql.db.commit()
 
   def _parse_inodes(self, location, start_offset):
     """Parse filesystem inodes.
@@ -580,6 +583,25 @@ class UnattendedVolumeScannerMediator(volume_scanner.VolumeScannerMediator):
       list[str]: all volume identifiers including prefix.
     """
     prefix = 'apfs'
+    return [
+        '{0:s}{1:d}'.format(prefix, volume_index)
+        for volume_index in range(1, volume_system.number_of_volumes + 1)
+    ]
+
+  def GetLVMVolumeIdentifiers(self, volume_system, volume_identifiers):
+    """Retrieves LVM volume identifiers.
+
+    This method can be used to prompt the user to provide LVM volume
+    identifiers.
+
+    Args:
+      volume_system (LVMVolumeSystem): volume system.
+      volume_identifiers (list[str]): volume identifiers including prefix.
+
+    Returns:
+      list[str]: selected volume identifiers including prefix or None.
+    """
+    prefix = 'lvm'
     return [
         '{0:s}{1:d}'.format(prefix, volume_index)
         for volume_index in range(1, volume_system.number_of_volumes + 1)
