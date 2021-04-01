@@ -410,9 +410,14 @@ class ImageProcessor():
     """Index the extracted strings."""
     self.elasticsearch = ElasticsearchDataStore()
     index_name = ''.join(('es', self.image_hash))
-    if self.elasticsearch.index_exists(index_name):
+    index_exists = self.elasticsearch.index_exists(index_name)
+    if index_exists:
       log.info('Image already indexed: [%s]', self.image_path)
-    else:
+      if self.options.reindex:
+        log.info('Reindexing.')
+        self.elasticsearch.delete_index(index_name)
+        index_exists = False
+    if not index_exists:
       index_name = self.elasticsearch.create_index(index_name=index_name)
       log.info('Index %s created.', index_name)
 
@@ -559,12 +564,13 @@ class ImageProcessorOptions():
     unzip (bool): decompress zip.
   """
 
-  def __init__(self, base64=True, gunzip=True, unzip=True):
+  def __init__(self, base64=True, gunzip=True, unzip=True, reindex=False):
     """Initialise image processor options."""
     super().__init__()
     self.base64 = base64
     self.gunzip = gunzip
     self.unzip = unzip
+    self.reindex = reindex
 
 
 class UnattendedVolumeScannerMediator(volume_scanner.VolumeScannerMediator):

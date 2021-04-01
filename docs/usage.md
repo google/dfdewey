@@ -1,7 +1,7 @@
 # Using dfDewey
 
 ```shell
-usage: dfdcli.py [-h] [--no_base64] [--no_gzip] [--no_zip] [-s SEARCH] [--search_list SEARCH_LIST] case [image]
+usage: dfdcli.py [-h] [--no_base64] [--no_gzip] [--no_zip] [--reindex] [-s SEARCH] [--search_list SEARCH_LIST] case [image]
 
 positional arguments:
   case                  case ID
@@ -12,11 +12,11 @@ optional arguments:
   --no_base64           don't decode base64
   --no_gzip             don't decompress gzip
   --no_zip              don't decompress zip
+  --reindex             recreate index (will delete existing index)
   -s SEARCH, --search SEARCH
                         search query
   --search_list SEARCH_LIST
                         file with search queries
-
 ```
 
 ## Docker
