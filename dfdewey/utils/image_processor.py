@@ -416,6 +416,7 @@ class ImageProcessor():
       if self.options.reindex:
         log.info('Reindexing.')
         self.elasticsearch.delete_index(index_name)
+        log.info('Index %s deleted.', index_name)
         index_exists = False
     if not index_exists:
       index_name = self.elasticsearch.create_index(index_name=index_name)
