@@ -225,7 +225,7 @@ class ImageProcessorTest(unittest.TestCase):
     mock_elasticsearch.import_event.assert_called_once_with(
         index_name, event=json_record)
 
-  @mock.patch('elasticsearch.client.IndicesClient.create')
+  @mock.patch('elasticsearch.client.IndicesClient')
   @mock.patch('dfdewey.utils.image_processor.ImageProcessor._index_record')
   @mock.patch('dfdewey.datastore.elastic.ElasticsearchDataStore.index_exists')
   @mock.patch('dfdewey.datastore.elastic.ElasticsearchDataStore.import_event')
@@ -243,6 +243,18 @@ class ImageProcessorTest(unittest.TestCase):
     mock_index_exists.return_value = True
     image_processor._index_strings()
     mock_index_record.assert_not_called()
+
+    # Test reindex flag
+    image_processor.options.reindex = True
+    image_processor._index_strings()
+    mock_create_index.assert_called_once_with(
+        index_name=''.join(('es', TEST_IMAGE_HASH)))
+    self.assertEqual(mock_index_record.call_count, 3)
+    mock_import_event.assert_called_once()
+    image_processor.options.reindex = False
+    mock_create_index.reset_mock()
+    mock_index_record.reset_mock()
+    mock_import_event.reset_mock()
 
     # Test new index
     mock_index_exists.return_value = False

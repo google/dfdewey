@@ -59,7 +59,7 @@ def main():
       log.error('Image must be supplied for processing.')
       sys.exit(1)
     image_processor_options = ImageProcessorOptions(
-        not args.no_base64, not args.no_gzip, not args.no_zip)
+        not args.no_base64, not args.no_gzip, not args.no_zip, args.reindex)
     image_processor = ImageProcessor(
         args.case, os.path.abspath(args.image), image_processor_options)
     image_processor.process_image()
@@ -90,6 +90,9 @@ def parse_args():
       '--no_gzip', help='don\'t decompress gzip', action='store_true')
   parser.add_argument(
       '--no_zip', help='don\'t decompress zip', action='store_true')
+  parser.add_argument(
+      '--reindex', help='recreate index (will delete existing index)',
+      action='store_true')
 
   # Search args
   parser.add_argument('-s', '--search', help='search query')

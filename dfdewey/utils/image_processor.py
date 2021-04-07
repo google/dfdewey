@@ -410,9 +410,15 @@ class ImageProcessor():
     """Index the extracted strings."""
     self.elasticsearch = ElasticsearchDataStore()
     index_name = ''.join(('es', self.image_hash))
-    if self.elasticsearch.index_exists(index_name):
+    index_exists = self.elasticsearch.index_exists(index_name)
+    if index_exists:
       log.info('Image already indexed: [%s]', self.image_path)
-    else:
+      if self.options.reindex:
+        log.info('Reindexing.')
+        self.elasticsearch.delete_index(index_name)
+        log.info('Index %s deleted.', index_name)
+        index_exists = False
+    if not index_exists:
       index_name = self.elasticsearch.create_index(index_name=index_name)
       log.info('Index %s created.', index_name)
 
@@ -476,6 +482,8 @@ class ImageProcessor():
       self._create_filesystem_database()
 
       # Scan image for volumes
+      dfvfs_definitions.PREFERRED_GPT_BACK_END = (
+          dfvfs_definitions.TYPE_INDICATOR_GPT)
       mediator = UnattendedVolumeScannerMediator()
       try:
         self.scanner = FileEntryScanner(mediator=mediator)
@@ -498,6 +506,7 @@ class ImageProcessor():
         else:
           log.warning(
               'Volume type %s is not supported.', path_spec.type_indicator)
+      self.postgresql.db.commit()
 
   def _parse_inodes(self, location, start_offset):
     """Parse filesystem inodes.
@@ -556,12 +565,13 @@ class ImageProcessorOptions():
     unzip (bool): decompress zip.
   """
 
-  def __init__(self, base64=True, gunzip=True, unzip=True):
+  def __init__(self, base64=True, gunzip=True, unzip=True, reindex=False):
     """Initialise image processor options."""
     super().__init__()
     self.base64 = base64
     self.gunzip = gunzip
     self.unzip = unzip
+    self.reindex = reindex
 
 
 class UnattendedVolumeScannerMediator(volume_scanner.VolumeScannerMediator):
@@ -580,6 +590,25 @@ class UnattendedVolumeScannerMediator(volume_scanner.VolumeScannerMediator):
       list[str]: all volume identifiers including prefix.
     """
     prefix = 'apfs'
+    return [
+        '{0:s}{1:d}'.format(prefix, volume_index)
+        for volume_index in range(1, volume_system.number_of_volumes + 1)
+    ]
+
+  def GetLVMVolumeIdentifiers(self, volume_system, volume_identifiers):
+    """Retrieves LVM volume identifiers.
+
+    This method can be used to prompt the user to provide LVM volume
+    identifiers.
+
+    Args:
+      volume_system (LVMVolumeSystem): volume system.
+      volume_identifiers (list[str]): volume identifiers including prefix.
+
+    Returns:
+      list[str]: selected volume identifiers including prefix or None.
+    """
+    prefix = 'lvm'
     return [
         '{0:s}{1:d}'.format(prefix, volume_index)
         for volume_index in range(1, volume_system.number_of_volumes + 1)
