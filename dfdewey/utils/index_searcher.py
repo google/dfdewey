@@ -25,8 +25,7 @@ from tabulate import tabulate
 
 from dfdewey.datastore.elastic import ElasticsearchDataStore
 from dfdewey.datastore.postgresql import PostgresqlDataStore
-from dfdewey.utils.image_processor import (
-    FileEntryScanner, UnattendedVolumeScannerMediator)
+from dfdewey.utils.image_processor import FileEntryScanner
 
 DATA_COLUMN_WIDTH = 110
 TEXT_HIGHLIGHT = '\u001b[31m\u001b[1m'
@@ -131,8 +130,7 @@ class IndexSearcher():
     volume_extents = {}
     try:
       if not self.scanner:
-        mediator = UnattendedVolumeScannerMediator()
-        self.scanner = FileEntryScanner(mediator=mediator)
+        self.scanner = FileEntryScanner()
       volume_extents = self.scanner.get_volume_extents(image_path)
     except dfvfs_errors.ScannerError as e:
       log.error('Error scanning for partitions: %s', e)
