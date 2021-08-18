@@ -66,7 +66,7 @@ def main():
   else:
     index_searcher = IndexSearcher(args.case, args.image)
     if args.search:
-      index_searcher.search(args.search)
+      index_searcher.search(args.search, args.highlight)
     elif args.search_list:
       index_searcher.list_search(args.search_list)
 
@@ -95,6 +95,9 @@ def parse_args():
       action='store_true')
 
   # Search args
+  parser.add_argument(
+      '--highlight', help='highlight search term in results',
+      action='store_true')
   parser.add_argument('-s', '--search', help='search query')
   parser.add_argument('--search_list', help='file with search queries')
 

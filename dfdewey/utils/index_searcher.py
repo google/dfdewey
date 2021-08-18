@@ -324,11 +324,12 @@ class IndexSearcher():
           'Searched %s (%s) for terms in %s\n\n%s\n', image_path, image_hash,
           query_list, output)
 
-  def search(self, query):
+  def search(self, query, highlight=False):
     """Run a single query.
 
     Args:
       query (str): query to run.
+      highlight (bool): flag to highlight search term in results.
     """
     for image_hash, image_path in self.images.items():
       log.info('Searching %s (%s) for "%s"', image_path, image_hash, query)
@@ -360,7 +361,8 @@ class IndexSearcher():
         re_query = re_query.replace('?', '.')
         hit_positions = re.finditer(re_query, hit.data, re.IGNORECASE)
         hit.data = textwrap.wrap(hit.data, DATA_COLUMN_WIDTH)
-        hit.data = self._highlight_hit(hit.data, hit_positions)
+        if highlight:
+          hit.data = self._highlight_hit(hit.data, hit_positions)
         hit.data = '\n'.join(hit.data)
         hits.append(hit.copy_to_dict())
       output = tabulate(hits, headers='keys', tablefmt='simple')

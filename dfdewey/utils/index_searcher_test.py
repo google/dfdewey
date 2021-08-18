@@ -188,7 +188,8 @@ class IndexSearcherTest(unittest.TestCase):
             }]
         }
     }
-    index_searcher.search('test')
+    # Test with highlighting
+    index_searcher.search('test', True)
     mock_search.assert_called_once()
     output_calls = mock_output.mock_calls
     self.assertEqual(output_calls[0].args[1], image_path)
@@ -200,6 +201,22 @@ class IndexSearcherTest(unittest.TestCase):
     self.assertEqual(table_output[76:84], '12889600')
     self.assertEqual(table_output[106:123], '\u001b[31m\u001b[1mtest\u001b[0m')
     self.assertEqual(table_output[124:130], 'GZIP-0')
+
+    # Test without highlighting
+    mock_search.reset_mock()
+    mock_output.reset_mock()
+    index_searcher.search('test')
+    mock_search.assert_called_once()
+    output_calls = mock_output.mock_calls
+    self.assertEqual(output_calls[0].args[1], image_path)
+    self.assertEqual(output_calls[0].args[2], TEST_IMAGE_HASH)
+    self.assertEqual(output_calls[0].args[3], 'test')
+    self.assertEqual(output_calls[1].args[1], 1)
+    self.assertEqual(output_calls[1].args[2], 2)
+    table_output = output_calls[1].args[3]
+    self.assertEqual(table_output[76:84], '12889600')
+    self.assertEqual(table_output[106:110], 'test')
+    self.assertEqual(table_output[111:117], 'GZIP-0')
 
   def test_wrap_filenames(self):
     """Test wrap filenames method."""
