@@ -205,7 +205,11 @@ class FileEntryScanner(volume_scanner.VolumeScanner):
       Volume location / identifier, offset, and size for all volumes.
     """
     if not self._volumes or self._source_path != image_path:
-      base_path_specs = self.GetBasePathSpecs(image_path)
+      options = volume_scanner.VolumeScannerOptions()
+      options.partitions = ['all']
+      options.volumes = ['all']
+      options.snapshots = ['none']
+      base_path_specs = self.GetBasePathSpecs(image_path, options=options)
 
       for path_spec in base_path_specs:
         partition_path_spec = self._get_tsk_partition_path_spec(path_spec)
@@ -482,12 +486,14 @@ class ImageProcessor():
       self._create_filesystem_database()
 
       # Scan image for volumes
-      dfvfs_definitions.PREFERRED_GPT_BACK_END = (
-          dfvfs_definitions.TYPE_INDICATOR_GPT)
-      mediator = UnattendedVolumeScannerMediator()
+      options = volume_scanner.VolumeScannerOptions()
+      options.partitions = ['all']
+      options.volumes = ['all']
+      options.snapshots = ['none']
       try:
-        self.scanner = FileEntryScanner(mediator=mediator)
-        self.path_specs = self.scanner.GetBasePathSpecs(self.image_path)
+        self.scanner = FileEntryScanner()
+        self.path_specs = self.scanner.GetBasePathSpecs(
+            self.image_path, options=options)
         log.info(
             'Found %d volume%s in [%s]:', len(self.path_specs),
             '' if len(self.path_specs) == 1 else 's', self.image_path)
@@ -499,8 +505,8 @@ class ImageProcessor():
         log.info(
             '%s: %s (Offset %d)', location, path_spec.type_indicator,
             start_offset)
-        if path_spec.type_indicator in (dfvfs_definitions.TYPE_INDICATOR_NTFS,
-                                        dfvfs_definitions.TYPE_INDICATOR_TSK):
+        if path_spec.type_indicator in (dfvfs_definitions.TYPE_INDICATOR_EXT,
+                                        dfvfs_definitions.TYPE_INDICATOR_NTFS):
           self._parse_inodes(location, start_offset)
           self.scanner.parse_file_entries([path_spec], self.postgresql)
         else:
@@ -572,96 +578,3 @@ class ImageProcessorOptions():
     self.gunzip = gunzip
     self.unzip = unzip
     self.reindex = reindex
-
-
-class UnattendedVolumeScannerMediator(volume_scanner.VolumeScannerMediator):
-  """Unattended volume scanner mediator."""
-
-  def GetAPFSVolumeIdentifiers(self, volume_system, volume_identifiers):
-    """Retrieves APFS volume identifiers.
-
-    In an unattended execution, this method returns all volume identifiers.
-
-    Args:
-      volume_system (APFSVolumeSystem): volume system.
-      volume_identifiers (list[str]): volume identifiers including prefix.
-
-    Returns:
-      list[str]: all volume identifiers including prefix.
-    """
-    prefix = 'apfs'
-    return [
-        '{0:s}{1:d}'.format(prefix, volume_index)
-        for volume_index in range(1, volume_system.number_of_volumes + 1)
-    ]
-
-  def GetLVMVolumeIdentifiers(self, volume_system, volume_identifiers):
-    """Retrieves LVM volume identifiers.
-
-    This method can be used to prompt the user to provide LVM volume
-    identifiers.
-
-    Args:
-      volume_system (LVMVolumeSystem): volume system.
-      volume_identifiers (list[str]): volume identifiers including prefix.
-
-    Returns:
-      list[str]: selected volume identifiers including prefix or None.
-    """
-    prefix = 'lvm'
-    return [
-        '{0:s}{1:d}'.format(prefix, volume_index)
-        for volume_index in range(1, volume_system.number_of_volumes + 1)
-    ]
-
-  def GetPartitionIdentifiers(self, volume_system, volume_identifiers):
-    """Retrieves partition identifiers.
-
-    In an unattended execution, this method returns all partition identifiers.
-
-    Args:
-      volume_system (TSKVolumeSystem): volume system.
-      volume_identifiers (list[str]): volume identifiers including prefix.
-
-    Returns:
-      list[str]: all volume identifiers including prefix.
-    """
-    prefix = 'p'
-    return [
-        '{0:s}{1:d}'.format(prefix, volume_index)
-        for volume_index in range(1, volume_system.number_of_volumes + 1)
-    ]
-
-  def GetVSSStoreIdentifiers(self, volume_system, volume_identifiers):
-    """Retrieves VSS store identifiers.
-
-    Placeholder method for VSS support.
-
-    Args:
-      volume_system (VShadowVolumeSystem): volume system.
-      volume_identifiers (list[str]): volume identifiers including prefix.
-
-    Returns:
-      list[str]: None.
-    """
-    return []
-
-  def UnlockEncryptedVolume(
-      self, source_scanner_object, scan_context, locked_scan_node, credentials):
-    """Unlocks an encrypted volume.
-
-    Placeholder method for encrypted volume support.
-
-    Args:
-      source_scanner_object (SourceScanner): source scanner.
-      scan_context (SourceScannerContext): source scanner context.
-      locked_scan_node (SourceScanNode): locked scan node.
-      credentials (Credentials): credentials supported by the locked scan node.
-
-    Returns:
-      bool: True if the volume was unlocked.
-    """
-    log.warning(
-        'Encrypted volumes are currently unsupported: %s',
-        locked_scan_node.path_spec.CopyToDict())
-    return False
