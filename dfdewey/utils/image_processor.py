@@ -27,6 +27,7 @@ from dfvfs.resolver import resolver
 from dfvfs.volume import tsk_volume_system
 import pytsk3
 
+import dfdewey.config as dfdewey_config
 from dfdewey.datastore.elastic import ElasticsearchDataStore
 from dfdewey.datastore.postgresql import PostgresqlDataStore
 
@@ -284,6 +285,7 @@ class ImageProcessor():
     """Create an image processor."""
     super().__init__()
     self.case = case
+    self.config = dfdewey_config.load_config()
     self.elasticsearch = None
     self.image_hash = None
     self.image_path = image_path
@@ -412,7 +414,11 @@ class ImageProcessor():
 
   def _index_strings(self):
     """Index the extracted strings."""
-    self.elasticsearch = ElasticsearchDataStore()
+    if self.config:
+      self.elasticsearch = ElasticsearchDataStore(
+          host=self.config.ES_HOST, port=self.config.ES_PORT)
+    else:
+      self.elasticsearch = ElasticsearchDataStore()
     index_name = ''.join(('es', self.image_hash))
     index_exists = self.elasticsearch.index_exists(index_name)
     if index_exists:
@@ -475,7 +481,12 @@ class ImageProcessor():
 
     Parse each filesystem to create a mapping from byte offsets to files.
     """
-    self.postgresql = PostgresqlDataStore(autocommit=True)
+    if self.config:
+      self.postgresql = PostgresqlDataStore(
+          host=self.config.PG_HOST, port=self.config.PG_PORT,
+          db_name=self.config.PG_DB_NAME, autocommit=True)
+    else:
+      self.postgresql = PostgresqlDataStore(autocommit=True)
     if self._already_parsed():
       log.info('Image already parsed: [%s]', self.image_path)
     else:

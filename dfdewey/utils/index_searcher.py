@@ -23,6 +23,7 @@ from dfvfs.lib import errors as dfvfs_errors
 import pytsk3
 from tabulate import tabulate
 
+import dfdewey.config as dfdewey_config
 from dfdewey.datastore.elastic import ElasticsearchDataStore
 from dfdewey.datastore.postgresql import PostgresqlDataStore
 from dfdewey.utils.image_processor import FileEntryScanner
@@ -69,11 +70,21 @@ class IndexSearcher():
     """Create an index searcher."""
     super().__init__()
     self.case = case
-    self.elasticsearch = ElasticsearchDataStore()
+    self.elasticsearch = None
     self.image = image
     self.images = {}
-    self.postgresql = PostgresqlDataStore()
+    self.postgresql = None
     self.scanner = None
+
+    config = dfdewey_config.load_config()
+    if config:
+      self.postgresql = PostgresqlDataStore(
+          host=config.PG_HOST, port=config.PG_PORT, db_name=config.PG_DB_NAME)
+      self.elasticsearch = ElasticsearchDataStore(
+          host=self.config.ES_HOST, port=self.config.ES_PORT)
+    else:
+      self.postgresql = PostgresqlDataStore()
+      self.elasticsearch = ElasticsearchDataStore()
 
     if image != 'all':
       self.image = os.path.abspath(self.image)
