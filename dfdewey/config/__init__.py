@@ -50,4 +50,7 @@ def load_config(config_file=None):
       log.error(
           'Could not load config file {0:s}: {1!s}'.format(config_file, e))
 
+  if not config:
+    log.warn('Config file not loaded. Using default datastore settings.')
+
   return config

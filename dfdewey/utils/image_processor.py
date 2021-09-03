@@ -281,11 +281,11 @@ class ImageProcessor():
     scanner (FileEntryScanner): dfvfs volume / file entry scanner.
   """
 
-  def __init__(self, case, image_path, options):
+  def __init__(self, case, image_path, options, config_file=None):
     """Create an image processor."""
     super().__init__()
     self.case = case
-    self.config = dfdewey_config.load_config()
+    self.config = dfdewey_config.load_config(config_file=config_file)
     self.elasticsearch = None
     self.image_hash = None
     self.image_path = image_path

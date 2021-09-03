@@ -1,8 +1,8 @@
 # Using dfDewey
 
 ```shell
-usage: dfdcli.py [-h] [--no_base64] [--no_gzip] [--no_zip] [--reindex]
-[--highlight] [-s SEARCH] [--search_list SEARCH_LIST] case [image]
+usage: dfdcli.py [-h] [-c CONFIG] [--no_base64] [--no_gzip] [--no_zip]
+[--reindex] [--highlight] [-s SEARCH] [--search_list SEARCH_LIST] case [image]
 
 positional arguments:
   case                  case ID
@@ -10,6 +10,8 @@ positional arguments:
 
 optional arguments:
   -h, --help            show this help message and exit
+  -c CONFIG, --config CONFIG
+                        datastore config file
   --no_base64           don't decode base64
   --no_gzip             don't decompress gzip
   --no_zip              don't decompress zip

@@ -66,7 +66,7 @@ class _SearchHit():
 class IndexSearcher():
   """Index Searcher class."""
 
-  def __init__(self, case, image):
+  def __init__(self, case, image, config_file=None):
     """Create an index searcher."""
     super().__init__()
     self.case = case
@@ -76,7 +76,7 @@ class IndexSearcher():
     self.postgresql = None
     self.scanner = None
 
-    config = dfdewey_config.load_config()
+    config = dfdewey_config.load_config(config_file)
     if config:
       self.postgresql = PostgresqlDataStore(
           host=config.PG_HOST, port=config.PG_PORT, db_name=config.PG_DB_NAME)
