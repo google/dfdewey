@@ -1,8 +1,10 @@
 # Using dfDewey
 
 ```shell
-usage: dfdcli.py [-h] [-c CONFIG] [--no_base64] [--no_gzip] [--no_zip]
-[--reindex] [--highlight] [-s SEARCH] [--search_list SEARCH_LIST] case [image]
+usage: dfdewey [-h] [-c CONFIG] [--no_base64] [--no_gzip] [--no_zip]
+               [--reindex] [--highlight] [-s SEARCH]
+               [--search_list SEARCH_LIST]
+               case [image]
 
 positional arguments:
   case                  case ID
@@ -48,10 +50,10 @@ docker-compose down
 The `docker` folder also contains a `Dockerfile` to build dfDewey and its
 dependencies into a Docker image.
 
-Build the image from the `docker` folder with:
+To build the image (must be run from the root of the repo):
 
 ```shell
-docker build -t <docker_name> ./
+docker build -t <docker_name> -f ./docker/Dockerfile .
 ```
 
 When running dfDewey within a Docker container, we need to give the container
@@ -68,7 +70,7 @@ docker run --network=host -v ~/images/:/mnt/images <docker_name> dfdewey -h
 To process an image in dfDewey, you need to supply a `CASE` and `IMAGE`.
 
 ```shell
-dfdcli.py testcase /path/to/image.dd
+dfdewey testcase /path/to/image.dd
 ```
 
 dfDewey will have bulk_extractor decode base64 data, and decompress gzip / zip
@@ -81,7 +83,7 @@ To search the index for a single image, you need to supply a `CASE`, `IMAGE`,
 and `SEARCH`.
 
 ```shell
-dfdcli.py testcase /path/to/image.dd -s 'foo'
+dfdewey testcase /path/to/image.dd -s 'foo'
 ```
 
 If an `IMAGE` is not provided, dfDewey will search all images in the given case.
@@ -91,5 +93,5 @@ a text file one per line. In this case, only the number of results for each term
 is returned.
 
 ```shell
-dfdcli.py testcase /path/to/image.dd --search_list search_terms.txt
+dfdewey testcase /path/to/image.dd --search_list search_terms.txt
 ```
