@@ -16,6 +16,7 @@
 FROM ubuntu:18.04
 
 # Update the base image
+ENV DEBIAN_FRONTEND=noninteractive
 RUN apt update
 RUN apt -y install apt-utils && apt -y upgrade && apt -y dist-upgrade
 
@@ -23,12 +24,18 @@ RUN apt -y install apt-utils && apt -y upgrade && apt -y dist-upgrade
 RUN apt -y install software-properties-common
 RUN add-apt-repository ppa:gift/stable
 RUN apt update
-RUN apt -y install bulk-extractor git
+RUN apt -y install \
+    bulk-extractor \
+    libpq-dev \
+    python3 \
+    python3-pip \
+    python3-dev \
+    python3-dfvfs
 
 # Setup dfDewey
-RUN git clone https://github.com/google/dfdewey.git
-RUN apt -y install python3 python3-pip python3-dev
-RUN pip3 install -r dfdewey/requirements.txt
-RUN cd dfdewey && python3 setup.py install
-COPY dfdewey /usr/bin/
-RUN chmod a+x /usr/bin/dfdewey
+ADD . /tmp/
+RUN cd /tmp/ && python3 setup.py install
+COPY docker/keepalive.sh /usr/bin/keepalive.sh
+RUN chmod a+x /usr/bin/keepalive.sh
+
+CMD ["/usr/bin/keepalive.sh"]

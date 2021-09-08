@@ -27,6 +27,7 @@ from dfvfs.resolver import resolver
 from dfvfs.volume import tsk_volume_system
 import pytsk3
 
+import dfdewey.config as dfdewey_config
 from dfdewey.datastore.elastic import ElasticsearchDataStore
 from dfdewey.datastore.postgresql import PostgresqlDataStore
 
@@ -280,10 +281,11 @@ class ImageProcessor():
     scanner (FileEntryScanner): dfvfs volume / file entry scanner.
   """
 
-  def __init__(self, case, image_path, options):
+  def __init__(self, case, image_path, options, config_file=None):
     """Create an image processor."""
     super().__init__()
     self.case = case
+    self.config = dfdewey_config.load_config(config_file=config_file)
     self.elasticsearch = None
     self.image_hash = None
     self.image_path = image_path
@@ -412,7 +414,12 @@ class ImageProcessor():
 
   def _index_strings(self):
     """Index the extracted strings."""
-    self.elasticsearch = ElasticsearchDataStore()
+    if self.config:
+      self.elasticsearch = ElasticsearchDataStore(
+          host=self.config.ES_HOST, port=self.config.ES_PORT,
+          url=self.config.ES_URL)
+    else:
+      self.elasticsearch = ElasticsearchDataStore()
     index_name = ''.join(('es', self.image_hash))
     index_exists = self.elasticsearch.index_exists(index_name)
     if index_exists:
@@ -475,13 +482,22 @@ class ImageProcessor():
 
     Parse each filesystem to create a mapping from byte offsets to files.
     """
-    self.postgresql = PostgresqlDataStore(autocommit=True)
+    if self.config:
+      self.postgresql = PostgresqlDataStore(
+          host=self.config.PG_HOST, port=self.config.PG_PORT,
+          db_name=self.config.PG_DB_NAME, autocommit=True)
+    else:
+      self.postgresql = PostgresqlDataStore(autocommit=True)
     if self._already_parsed():
       log.info('Image already parsed: [%s]', self.image_path)
     else:
       db_name = ''.join(('fs', self.image_hash))
       self.postgresql.execute('CREATE DATABASE {0:s}'.format(db_name))
-      self.postgresql.switch_database(db_name=db_name)
+      if self.config:
+        self.postgresql.switch_database(
+            host=self.config.PG_HOST, port=self.config.PG_PORT, db_name=db_name)
+      else:
+        self.postgresql.switch_database(db_name=db_name)
 
       self._create_filesystem_database()
 

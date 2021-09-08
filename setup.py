@@ -31,8 +31,6 @@ DFDEWEY_DESCRIPTION = (
 requirements = []
 with open('requirements.txt','r') as f:
   requirements = f.read().splitlines()
-with open('dfvfs_requirements.txt','r') as f:
-  requirements.extend(f.read().splitlines())
 setup(
     name='dfDewey',
     version=dfdewey.__version__,
@@ -45,5 +43,6 @@ setup(
     install_requires=requirements,
     extras_require={
         'dev': ['mock', 'nose', 'yapf', 'coverage']
-    }
+    },
+    entry_points={'console_scripts': ['dfdewey=dfdewey.dfdcli:main']}
 )

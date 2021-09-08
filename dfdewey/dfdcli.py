@@ -61,10 +61,11 @@ def main():
     image_processor_options = ImageProcessorOptions(
         not args.no_base64, not args.no_gzip, not args.no_zip, args.reindex)
     image_processor = ImageProcessor(
-        args.case, os.path.abspath(args.image), image_processor_options)
+        args.case, os.path.abspath(args.image), image_processor_options,
+        args.config)
     image_processor.process_image()
   else:
-    index_searcher = IndexSearcher(args.case, args.image)
+    index_searcher = IndexSearcher(args.case, args.image, args.config)
     if args.search:
       index_searcher.search(args.search, args.highlight)
     elif args.search_list:
@@ -82,6 +83,8 @@ def parse_args():
   parser.add_argument('case', help='case ID')
   parser.add_argument(
       'image', nargs='?', default='all', help='image file (default: \'all\')')
+
+  parser.add_argument('-c', '--config', help='datastore config file')
 
   # Indexing args
   parser.add_argument(

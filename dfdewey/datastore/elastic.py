@@ -27,10 +27,13 @@ class ElasticsearchDataStore():
   DEFAULT_FLUSH_INTERVAL = 20000
   DEFAULT_SIZE = 1000  # Max events to return
 
-  def __init__(self, host='127.0.0.1', port=9200):
+  def __init__(self, host='127.0.0.1', port=9200, url=None):
     """Create an Elasticsearch client."""
     super().__init__()
-    self.client = Elasticsearch([{'host': host, 'port': port}], timeout=30)
+    if url:
+      self.client = Elasticsearch([url], timeout=30)
+    else:
+      self.client = Elasticsearch([{'host': host, 'port': port}], timeout=30)
     self.import_counter = collections.Counter()
     self.import_events = []
 

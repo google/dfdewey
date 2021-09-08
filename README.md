@@ -6,6 +6,7 @@ dfDewey is a digital forensics string extraction, indexing, and searching tool.
 [Usage](docs/usage.md)
 
 ## Requirements
+### bulk_extractor
 dfDewey currently requires bulk_extractor for string extraction.
 bulk_extractor can be downloaded and built from source here:
 https://github.com/simsong/bulk_extractor
@@ -18,18 +19,38 @@ sudo apt update
 sudo apt install -y bulk-extractor
 ```
 
+### dfVFS
+[dfVFS](https://github.com/log2timeline/dfvfs) is requred for image parsing. It
+can be installed from the GIFT PPA.
+
+```shell
+sudo add-apt-repository ppa:gift/stable
+sudo apt update
+sudo apt install -y python3-dfvfs
+```
+
+It can also be installed using pip:
+
+```shell
+pip install -r dfvfs_requirements.txt
+```
+
+### Datastores
 Elasticsearch and PostgreSQL are also required to store extracted data.
 These can be installed separately or started in Docker using `docker-compose`.
 
 ```shell
-cd dfdewey/docker
+cd docker
 sudo docker-compose up -d
 ```
 
 Note: To stop the containers (and purge the stored data) run
-`sudo docker-compose down` from the `dfdewey/docker` directory.
+`sudo docker-compose down` from the `docker` directory.
 
-All other requirements are installed with:
-`python setup.py install`
+## Installation
+
+```shell
+python setup.py install
+```
 
 Note: It's recommended to install dfDewey within a virtual environment.
