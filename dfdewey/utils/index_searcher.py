@@ -70,18 +70,20 @@ class IndexSearcher():
     """Create an index searcher."""
     super().__init__()
     self.case = case
+    self.config = dfdewey_config.load_config(config_file)
     self.elasticsearch = None
     self.image = image
     self.images = {}
     self.postgresql = None
     self.scanner = None
 
-    config = dfdewey_config.load_config(config_file)
-    if config:
+    if self.config:
       self.postgresql = PostgresqlDataStore(
-          host=config.PG_HOST, port=config.PG_PORT, db_name=config.PG_DB_NAME)
+          host=self.config.PG_HOST, port=self.config.PG_PORT,
+          db_name=self.config.PG_DB_NAME)
       self.elasticsearch = ElasticsearchDataStore(
-          host=self.config.ES_HOST, port=self.config.ES_PORT)
+          host=self.config.ES_HOST, port=self.config.ES_PORT,
+          url=self.config.ES_URL)
     else:
       self.postgresql = PostgresqlDataStore()
       self.elasticsearch = ElasticsearchDataStore()
@@ -136,7 +138,12 @@ class IndexSearcher():
     filenames = []
 
     database_name = ''.join(('fs', image_hash))
-    self.postgresql.switch_database(db_name=database_name)
+    if self.config:
+      self.postgresql.switch_database(
+          host=self.config.PG_HOST, port=self.config.PG_PORT,
+          db_name=database_name)
+    else:
+      self.postgresql.switch_database(db_name=database_name)
 
     volume_extents = {}
     try:

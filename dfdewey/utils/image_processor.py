@@ -416,7 +416,8 @@ class ImageProcessor():
     """Index the extracted strings."""
     if self.config:
       self.elasticsearch = ElasticsearchDataStore(
-          host=self.config.ES_HOST, port=self.config.ES_PORT)
+          host=self.config.ES_HOST, port=self.config.ES_PORT,
+          url=self.config.ES_URL)
     else:
       self.elasticsearch = ElasticsearchDataStore()
     index_name = ''.join(('es', self.image_hash))
@@ -492,7 +493,11 @@ class ImageProcessor():
     else:
       db_name = ''.join(('fs', self.image_hash))
       self.postgresql.execute('CREATE DATABASE {0:s}'.format(db_name))
-      self.postgresql.switch_database(db_name=db_name)
+      if self.config:
+        self.postgresql.switch_database(
+            host=self.config.PG_HOST, port=self.config.PG_PORT, db_name=db_name)
+      else:
+        self.postgresql.switch_database(db_name=db_name)
 
       self._create_filesystem_database()
 
