@@ -544,7 +544,11 @@ class ImageProcessor():
     filesystem = pytsk3.FS_Info(image, offset=start_offset)
     for inode in range(filesystem.info.first_inum,
                        filesystem.info.last_inum + 1):
-      file_metadata = filesystem.open_meta(inode)
+      try:
+        file_metadata = filesystem.open_meta(inode)
+      except OSError as e:
+        log.debug('Error opening inode {0:d}: {1!s}'.format(inode, e))
+        continue
       if file_metadata.info.meta.nlink > 0:
         for attribute in file_metadata:
           for run in attribute:
