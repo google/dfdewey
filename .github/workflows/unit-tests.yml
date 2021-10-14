@@ -21,9 +21,11 @@ jobs:
 
       - name: Install dependencies
         run: |
+          add-apt-repository -y ppa:gift/stable
+          apt update -q
+          apt install -y python3-dfvfs
           pip install pipenv
           pipenv install -e .[dev]
-          pipenv install -r dfvfs_requirements.txt
 
       - name: Run unit tests
         run: pipenv run python run_tests.py
