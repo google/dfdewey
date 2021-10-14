@@ -47,6 +47,12 @@ sudo docker-compose up -d
 Note: To stop the containers (and purge the stored data) run
 `sudo docker-compose down` from the `docker` directory.
 
+dfDewey will try to connect to datastores on localhost by default. If running
+datastores on separate servers, copy the config file template
+`dfdewey/config/config_template.py` to `~/.dfdeweyrc` and adjust the server
+connection settings in the file. You can also specify a different config file
+location on the command line using `-c`.
+
 ## Installation
 
 ```shell
