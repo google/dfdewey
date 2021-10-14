@@ -5,27 +5,32 @@ on:
     types: [opened, synchronize, reopened]
 
 jobs:
-  pip:
+  build:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python-version: [3.8]
+        include:
+        - python-version: '3.8'
+        - python-version: '3.9'
 
     steps:
       - uses: actions/checkout@v2
 
       - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v2
-        with:
-          python-version: ${{ matrix.python-version }}
+        env:
+          DEBIAN_FRONTEND: noninteractive
+        run: |
+          sudo apt update -q
+          sudo apt install -y software-properties-common
 
       - name: Install dependencies
+        env:
+          DEBIAN_FRONTEND: noninteractive
         run: |
           sudo add-apt-repository -y ppa:gift/stable
           sudo apt update -q
-          sudo apt install -y python3-dfvfs
-          pip install pipenv
-          pipenv install -e .[dev]
+          sudo apt install -y python${{ matrix.python-version }} python3-dfvfs python3-pip python3-setuptools
+          python3 -m pip install .[dev]
 
       - name: Run unit tests
-        run: pipenv run python run_tests.py
+        run: python3 run_tests.py
