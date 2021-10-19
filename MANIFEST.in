@@ -1,0 +1,8 @@
+include AUTHORS LICENSE README.md
+include requirements.txt dfvfs_requirements.txt
+exclude run_tests.py
+exclude .gitignore
+exclude *.pyc
+recursive-exclude dfdewey *_test.py
+recursive-exclude dfdewey *.pyc
+recursive-exclude test_data *

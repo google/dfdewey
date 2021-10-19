@@ -12,6 +12,9 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""DFDewey Package."""
+"""dfDewey Package.
 
-__version__ = '20201113'
+dfDewey is a digital forensics string extraction, indexing, and searching tool.
+"""
+
+__version__ = '20211019'
