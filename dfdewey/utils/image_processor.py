@@ -273,6 +273,7 @@ class ImageProcessor():
     case (str): case ID.
     elasticsearch (ElasticsearchDataStore): elasticsearch datastore.
     image_hash (str): MD5 hash of the image.
+    image_id (str): image identifier.
     image_path (str): path to source image.
     options (ImageProcessorOptions): image processor options.
     output_path (str): output directory for string extraction.
@@ -281,13 +282,14 @@ class ImageProcessor():
     scanner (FileEntryScanner): dfvfs volume / file entry scanner.
   """
 
-  def __init__(self, case, image_path, options, config_file=None):
+  def __init__(self, case, image_id, image_path, options, config_file=None):
     """Create an image processor."""
     super().__init__()
     self.case = case
     self.config = dfdewey_config.load_config(config_file=config_file)
     self.elasticsearch = None
     self.image_hash = None
+    self.image_id = image_id
     self.image_path = image_path
     self.options = options
     self.output_path = None
@@ -312,7 +314,7 @@ class ImageProcessor():
       self._initialise_database()
     else:
       image_exists = self.postgresql.value_exists(
-          'images', 'image_hash', self.image_hash)
+          'images', 'image_id', self.image_id)
 
     # Even if the image has already been parsed, it may have been in a different
     # case.
@@ -320,20 +322,20 @@ class ImageProcessor():
     if image_exists:
       image_case = self.postgresql.query_single_row((
           'SELECT 1 from image_case '
-          'WHERE image_hash = \'{0:s}\' AND case_id = \'{1:s}\'').format(
-              self.image_hash, self.case))
+          'WHERE image_id = \'{0:s}\' AND case_id = \'{1:s}\'').format(
+              self.image_id, self.case))
       if image_case:
         image_case_exists = True
     else:
       self.postgresql.execute((
-          'INSERT INTO images (image_path, image_hash) '
-          'VALUES (\'{0:s}\', \'{1:s}\')').format(
-              self.image_path, self.image_hash))
+          'INSERT INTO images (image_id, image_path, image_hash) '
+          'VALUES (\'{0:s}\', \'{1:s}\', \'{2:s}\')').format(
+              self.image_id, self.image_path, self.image_hash))
 
     if not image_case_exists:
       self.postgresql.execute((
-          'INSERT INTO image_case (case_id, image_hash) '
-          'VALUES (\'{0:s}\', \'{1:s}\')').format(self.case, self.image_hash))
+          'INSERT INTO image_case (case_id, image_id) '
+          'VALUES (\'{0:s}\', \'{1:s}\')').format(self.case, self.image_id))
 
     return image_exists
 
@@ -469,13 +471,14 @@ class ImageProcessor():
 
   def _initialise_database(self):
     """Initialse the image database."""
-    self.postgresql.execute(
-        'CREATE TABLE images (image_path TEXT, image_hash TEXT PRIMARY KEY)')
+    self.postgresql.execute((
+        'CREATE TABLE images (image_id TEXT PRIMARY KEY, image_path TEXT, '
+        'image_hash TEXT)'))
 
     self.postgresql.execute((
         'CREATE TABLE image_case ('
-        'case_id TEXT, image_hash TEXT REFERENCES images(image_hash), '
-        'PRIMARY KEY (case_id, image_hash))'))
+        'case_id TEXT, image_id TEXT REFERENCES images(image_id), '
+        'PRIMARY KEY (case_id, image_id))'))
 
   def _parse_filesystems(self):
     """Filesystem parsing.

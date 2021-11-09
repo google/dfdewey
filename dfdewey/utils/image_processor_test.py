@@ -29,6 +29,7 @@ from dfdewey.utils.image_processor import (
 TEST_CASE = 'testcase'
 TEST_IMAGE = 'test.dd'
 TEST_IMAGE_HASH = 'd41d8cd98f00b204e9800998ecf8427e'
+TEST_IMAGE_ID = 'd41d8cd98f00b204e9800998ecf8427e'
 
 
 class FileEntryScannerTest(unittest.TestCase):
@@ -73,7 +74,7 @@ class ImageProcessorTest(unittest.TestCase):
     """
     image_processor_options = ImageProcessorOptions()
     image_processor = ImageProcessor(
-        TEST_CASE, TEST_IMAGE, image_processor_options)
+        TEST_CASE, TEST_IMAGE_ID, TEST_IMAGE, image_processor_options)
     image_processor.image_hash = TEST_IMAGE_HASH
     return image_processor
 
@@ -92,12 +93,12 @@ class ImageProcessorTest(unittest.TestCase):
     mock_initialise_database.assert_called_once()
     calls = [
         mock.call((
-            'INSERT INTO images (image_path, image_hash) '
-            'VALUES (\'{0:s}\', \'{1:s}\')').format(
-                TEST_IMAGE, TEST_IMAGE_HASH)),
+            'INSERT INTO images (image_id, image_path, image_hash) '
+            'VALUES (\'{0:s}\', \'{1:s}\', \'{2:s}\')').format(
+                TEST_IMAGE_ID, TEST_IMAGE, TEST_IMAGE_HASH)),
         mock.call((
-            'INSERT INTO image_case (case_id, image_hash) '
-            'VALUES (\'{0:s}\', \'{1:s}\')').format(TEST_CASE, TEST_IMAGE_HASH))
+            'INSERT INTO image_case (case_id, image_id) '
+            'VALUES (\'{0:s}\', \'{1:s}\')').format(TEST_CASE, TEST_IMAGE_ID))
     ]
     mock_postgresql.execute.assert_has_calls(calls)
     self.assertEqual(result, False)
@@ -118,8 +119,8 @@ class ImageProcessorTest(unittest.TestCase):
     image_processor.postgresql = mock_postgresql
     result = image_processor._already_parsed()
     mock_postgresql.execute.assert_called_once_with((
-        'INSERT INTO image_case (case_id, image_hash) '
-        'VALUES (\'{0:s}\', \'{1:s}\')').format(TEST_CASE, TEST_IMAGE_HASH))
+        'INSERT INTO image_case (case_id, image_id) '
+        'VALUES (\'{0:s}\', \'{1:s}\')').format(TEST_CASE, TEST_IMAGE_ID))
     self.assertEqual(result, True)
 
   @mock.patch('dfdewey.datastore.postgresql.PostgresqlDataStore')
@@ -266,12 +267,12 @@ class ImageProcessorTest(unittest.TestCase):
     image_processor.postgresql = mock_postgresql
     calls = [
         mock.call(
-            'CREATE TABLE images (image_path TEXT, image_hash TEXT PRIMARY KEY)'
+            'CREATE TABLE images (image_id TEXT PRIMARY KEY, image_path TEXT, image_hash TEXT)'
         ),
         mock.call((
             'CREATE TABLE image_case ('
-            'case_id TEXT, image_hash TEXT REFERENCES images(image_hash), '
-            'PRIMARY KEY (case_id, image_hash))'))
+            'case_id TEXT, image_id TEXT REFERENCES images(image_id), '
+            'PRIMARY KEY (case_id, image_id))'))
     ]
     image_processor._initialise_database()
     mock_postgresql.execute.assert_has_calls(calls)

@@ -26,6 +26,7 @@ from dfdewey.utils.index_searcher import IndexSearcher
 TEST_CASE = 'testcase'
 TEST_IMAGE = 'test.dd'
 TEST_IMAGE_HASH = 'd41d8cd98f00b204e9800998ecf8427e'
+TEST_IMAGE_ID = 'd41d8cd98f00b204e9800998ecf8427e'
 
 
 class IndexSearcherTest(unittest.TestCase):
@@ -41,7 +42,7 @@ class IndexSearcherTest(unittest.TestCase):
         'dfdewey.datastore.postgresql.PostgresqlDataStore.query_single_row'
     ) as mock_query_single_row:
       mock_query_single_row.return_value = (TEST_IMAGE_HASH,)
-      index_searcher = IndexSearcher(TEST_CASE, TEST_IMAGE)
+      index_searcher = IndexSearcher(TEST_CASE, TEST_IMAGE_ID, TEST_IMAGE)
     return index_searcher
 
   @mock.patch('dfdewey.datastore.postgresql.PostgresqlDataStore.query')
@@ -55,7 +56,7 @@ class IndexSearcherTest(unittest.TestCase):
         'image2.dd',
     )]
     with mock.patch('psycopg2.connect'):
-      index_searcher = IndexSearcher(TEST_CASE, 'all')
+      index_searcher = IndexSearcher(TEST_CASE, None, 'all')
     self.assertEqual(index_searcher.images['hash1'], 'image1.dd')
     self.assertEqual(index_searcher.images['hash2'], 'image2.dd')
 
