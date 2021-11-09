@@ -16,6 +16,7 @@
 """DFDewey Command-Line Interface."""
 
 import argparse
+import hashlib
 import logging
 import os
 import sys
@@ -47,11 +48,48 @@ class _StringRecord():
     self.data = ''
 
 
+def get_image_id(image_path):
+  """Calculate image ID.
+
+  The image ID is the MD5 of the first 2GB of the disk being processed.
+
+  Args:
+    image_path: Path to the image / disk
+
+  Returns:
+    The calculated image ID.
+  """
+  image_path = os.path.abspath(image_path)
+  if not os.path.exists(image_path):
+    log.error('Image does not exist: {0!s}'.format(image_path))
+    sys.exit(1)
+
+  image_id = None
+  with open(image_path, 'rb') as image_file:
+    hash = hashlib.md5()
+    hashed = 0
+    while chunk := image_file.read(8192):
+      hash.update(chunk)
+      hashed += 1
+      if hashed == 262144:
+        break
+    image_id = hash.digest().hex()
+
+  return image_id
+
+
 def main():
   """Main DFDewey function."""
   args = parse_args()
 
   setup_logging()
+
+  image_id = None
+  if args.image != 'all':
+    image_id = get_image_id(args.image)
+    if image_id is None:
+      log.error('Could not calculate image ID.')
+      sys.exit(1)
 
   if not args.search and not args.search_list:
     # Processing an image since no search terms specified
@@ -61,11 +99,11 @@ def main():
     image_processor_options = ImageProcessorOptions(
         not args.no_base64, not args.no_gzip, not args.no_zip, args.reindex)
     image_processor = ImageProcessor(
-        args.case, os.path.abspath(args.image), image_processor_options,
-        args.config)
+        args.case, image_id, os.path.abspath(args.image),
+        image_processor_options, args.config)
     image_processor.process_image()
   else:
-    index_searcher = IndexSearcher(args.case, args.image, args.config)
+    index_searcher = IndexSearcher(args.case, image_id, args.image, args.config)
     if args.search:
       index_searcher.search(args.search, args.highlight)
     elif args.search_list:

@@ -66,13 +66,14 @@ class _SearchHit():
 class IndexSearcher():
   """Index Searcher class."""
 
-  def __init__(self, case, image, config_file=None):
+  def __init__(self, case, image_id, image, config_file=None):
     """Create an index searcher."""
     super().__init__()
     self.case = case
     self.config = dfdewey_config.load_config(config_file)
     self.elasticsearch = None
     self.image = image
+    self.image_id = image_id
     self.images = {}
     self.postgresql = None
     self.scanner = None
@@ -204,8 +205,8 @@ class IndexSearcher():
       MD5 hash for the image stored in PostgreSQL.
     """
     image_hash = self.postgresql.query_single_row(
-        'SELECT image_hash FROM images WHERE image_path = \'{0:s}\''.format(
-            self.image))
+        'SELECT image_hash FROM images WHERE image_id = \'{0:s}\''.format(
+            self.image_id))
     if image_hash:
       self.images[image_hash[0]] = self.image
 
