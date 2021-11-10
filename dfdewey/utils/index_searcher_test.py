@@ -43,6 +43,7 @@ class IndexSearcherTest(unittest.TestCase):
     ) as mock_query_single_row:
       mock_query_single_row.return_value = (TEST_IMAGE_HASH,)
       index_searcher = IndexSearcher(TEST_CASE, TEST_IMAGE_ID, TEST_IMAGE)
+      index_searcher.config = None
     return index_searcher
 
   @mock.patch('dfdewey.datastore.postgresql.PostgresqlDataStore.query')

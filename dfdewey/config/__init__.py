@@ -14,10 +14,12 @@
 # limitations under the License.
 """DFDewey Config."""
 
+import base64
 import imp
 import logging
 import os
 
+CONFIG_ENV = 'DFDEWEY_CONF'
 CONFIG_FILE = '.dfdeweyrc'
 # Look in homedir first, then current dir
 CONFIG_PATH = [
@@ -41,6 +43,13 @@ def load_config(config_file=None):
       if os.path.exists(os.path.join(path, CONFIG_FILE)):
         config_file = os.path.join(path, CONFIG_FILE)
         break
+    if not config_file:
+      # If we still don't have a config file, check the environment variable
+      config_env = os.environ.get(CONFIG_ENV)
+      if config_env:
+        config_file = os.path.join(CONFIG_PATH[0], CONFIG_FILE)
+        with open(config_file, 'wb') as f:
+          f.write(base64.b64decode(config_env))
 
   if config_file:
     log.debug('Loading config from {0:s}'.format(config_file))
