@@ -44,11 +44,13 @@ class DatastoreConfigTest(unittest.TestCase):
     with open(config_file, 'w') as config_file_handle:
       config_file_handle.write(text)
 
+  @mock.patch('os.environ.get')
   @mock.patch('os.path.exists')
-  def test_load_config(self, mock_path_exists):
+  def test_load_config(self, mock_path_exists, mock_env):
     """Test load config method."""
     # Test if config doesn't exist
     mock_path_exists.return_value = False
+    mock_env.return_value = None
     config = dfdewey_config.load_config()
     self.assertIsNone(config)
 
@@ -64,3 +66,13 @@ class DatastoreConfigTest(unittest.TestCase):
     # Test error opening specified config file
     config = dfdewey_config.load_config('/tmp/does-not-exist')
     self.assertIsNone(config)
+
+    # Test loading config from environment variable
+    mock_env.return_value = '1234'
+    mock_open = mock.mock_open()
+    with mock.patch('dfdewey.config.open', mock_open, create=True):
+      config = dfdewey_config.load_config()
+      mock_open.assert_called_once_with(
+          os.path.join(os.path.expanduser('~'), '.dfdeweyrc'), 'w')
+      mock_file_handle = mock_open()
+      mock_file_handle.write.assert_called_once()

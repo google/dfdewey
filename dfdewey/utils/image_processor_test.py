@@ -75,6 +75,7 @@ class ImageProcessorTest(unittest.TestCase):
     image_processor_options = ImageProcessorOptions()
     image_processor = ImageProcessor(
         TEST_CASE, TEST_IMAGE_ID, TEST_IMAGE, image_processor_options)
+    image_processor.config = None
     image_processor.image_hash = TEST_IMAGE_HASH
     return image_processor
 

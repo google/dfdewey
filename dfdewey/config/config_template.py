@@ -23,4 +23,5 @@ PG_DB_NAME = 'dfdewey'
 ES_HOST = '127.0.0.1'
 ES_PORT = 9200
 # ES_URL can be used to specify a RFC-1738 formatted URL
-#ES_URL = 'https://user:secret@127.0.0.1:9200/'
+# Example: ES_URL = 'https://user:secret@127.0.0.1:9200/'
+ES_URL = None
