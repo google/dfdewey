@@ -68,11 +68,11 @@ class DatastoreConfigTest(unittest.TestCase):
     self.assertIsNone(config)
 
     # Test loading config from environment variable
-    mock_env.return_value = 'IyBUZXN0IGNvbmZpZwpQR19IT1NUID0gJzEyNy4wLjAuMScK'
+    mock_env.return_value = '1234'
     mock_open = mock.mock_open()
     with mock.patch('dfdewey.config.open', mock_open, create=True):
       config = dfdewey_config.load_config()
       mock_open.assert_called_once_with(
-          os.path.join(os.path.expanduser('~'), '.dfdeweyrc'), 'wb')
+          os.path.join(os.path.expanduser('~'), '.dfdeweyrc'), 'w')
       mock_file_handle = mock_open()
       mock_file_handle.write.assert_called_once()

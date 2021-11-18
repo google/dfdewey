@@ -14,12 +14,13 @@
 # limitations under the License.
 """DFDewey Config."""
 
-import base64
 import imp
 import logging
 import os
 
-CONFIG_ENV = 'DFDEWEY_CONF'
+CONFIG_ENV = [
+    'PG_HOST', 'PG_PORT', 'PG_DB_NAME', 'ES_HOST', 'ES_PORT', 'ES_URL'
+]
 CONFIG_FILE = '.dfdeweyrc'
 # Look in homedir first, then current dir
 CONFIG_PATH = [
@@ -44,12 +45,27 @@ def load_config(config_file=None):
         config_file = os.path.join(path, CONFIG_FILE)
         break
     if not config_file:
-      # If we still don't have a config file, check the environment variable
-      config_env = os.environ.get(CONFIG_ENV)
-      if config_env:
+      # If we still don't have a config file, check the environment variables
+      valid_config = True
+      config_str = ''
+      for config_var in CONFIG_ENV:
+        config_env = os.environ.get('_'.join(('DFDEWEY', config_var)))
+        if not config_env:
+          if config_var == 'ES_URL':
+            config_str += '{0:s} = {1:s}\n'.format(config_var, 'None')
+            break
+          else:
+            valid_config = False
+            break
+        if 'PORT' in config_var:
+          config_str += '{0:s} = {1:d}\n'.format(config_var, int(config_env))
+        else:
+          config_str += '{0:s} = \'{1:s}\'\n'.format(config_var, config_env)
+
+      if valid_config:
         config_file = os.path.join(CONFIG_PATH[0], CONFIG_FILE)
-        with open(config_file, 'wb') as f:
-          f.write(base64.b64decode(config_env))
+        with open(config_file, 'w') as f:
+          f.write(config_str)
 
   if config_file:
     log.debug('Loading config from {0:s}'.format(config_file))
