@@ -182,13 +182,16 @@ class ImageProcessorTest(unittest.TestCase):
     """Test get volume details method."""
     image_processor = self._get_image_processor()
 
+    current_path = os.path.abspath(os.path.dirname(__file__))
+    image_path = os.path.join(current_path, '..', '..', 'test_data', TEST_IMAGE)
+
     os_path_spec = path_spec_factory.Factory.NewPathSpec(
-        dfvfs_definitions.TYPE_INDICATOR_OS, location=TEST_IMAGE)
+        dfvfs_definitions.TYPE_INDICATOR_OS, location=image_path)
     raw_path_spec = path_spec_factory.Factory.NewPathSpec(
         dfvfs_definitions.TYPE_INDICATOR_RAW, parent=os_path_spec)
     tsk_partition_spec = path_spec_factory.Factory.NewPathSpec(
         dfvfs_definitions.TYPE_INDICATOR_TSK_PARTITION, parent=raw_path_spec,
-        location='/p1', part_index=2, start_offset=2048)
+        location='/p1', start_offset=1048576)
     tsk_spec = path_spec_factory.Factory.NewPathSpec(
         dfvfs_definitions.TYPE_INDICATOR_NTFS, parent=tsk_partition_spec,
         location='/')
@@ -196,7 +199,7 @@ class ImageProcessorTest(unittest.TestCase):
     location, start_offset = image_processor._get_volume_details(tsk_spec)
 
     self.assertEqual(location, '/p1')
-    self.assertEqual(start_offset, 2048)
+    self.assertEqual(start_offset, 1048576)
 
   @mock.patch('dfdewey.datastore.elastic.ElasticsearchDataStore')
   def test_index_record(self, mock_elasticsearch):

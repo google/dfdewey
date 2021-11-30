@@ -24,6 +24,8 @@ from dfvfs.helpers import volume_scanner
 from dfvfs.lib import definitions as dfvfs_definitions
 from dfvfs.lib import errors as dfvfs_errors
 from dfvfs.resolver import resolver
+from dfvfs.volume import gpt_volume_system
+from dfvfs.volume import lvm_volume_system
 from dfvfs.volume import tsk_volume_system
 import pytsk3
 
@@ -384,17 +386,34 @@ class ImageProcessor():
     Returns:
       Volume location / identifier and byte offset.
     """
-    location = getattr(path_spec, 'location', None)
-    start_offset = 0
+    fs_location = getattr(path_spec, 'location', None)
     while path_spec.HasParent():
       type_indicator = path_spec.type_indicator
-      if type_indicator == dfvfs_definitions.TYPE_INDICATOR_TSK_PARTITION:
-        if location in ('\\', '/'):
-          location = getattr(path_spec, 'location', None)
-        start_offset = getattr(path_spec, 'start_offset', 0)
+      if type_indicator in (dfvfs_definitions.TYPE_INDICATOR_GPT,
+                            dfvfs_definitions.TYPE_INDICATOR_LVM,
+                            dfvfs_definitions.TYPE_INDICATOR_TSK_PARTITION):
+        if fs_location in ('\\', '/'):
+          fs_location = getattr(path_spec, 'location', None)
+        partition_location = getattr(path_spec, 'location', None)
+
+        if type_indicator == dfvfs_definitions.TYPE_INDICATOR_TSK_PARTITION:
+          volume_system = tsk_volume_system.TSKVolumeSystem()
+        elif type_indicator == dfvfs_definitions.TYPE_INDICATOR_LVM:
+          volume_system = lvm_volume_system.LVMVolumeSystem()
+        else:
+          volume_system = gpt_volume_system.GPTVolumeSystem()
+
+        try:
+          volume_system.Open(path_spec)
+          volume_identifier = partition_location.replace('/', '')
+          volume = volume_system.GetVolumeByIdentifier(volume_identifier)
+          partition_offset = volume.extents[0].offset
+        except dfvfs_errors.VolumeSystemError as e:
+          raise RuntimeError('Unable to get volume details.') from e
         break
       path_spec = path_spec.parent
-    return location, start_offset
+
+    return partition_location, partition_offset
 
   def _index_record(self, index_name, string_record):
     """Index a single record.
