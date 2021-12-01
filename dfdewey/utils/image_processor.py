@@ -133,7 +133,9 @@ class FileEntryScanner(volume_scanner.VolumeScanner):
     location = getattr(path_spec, 'location', None)
     while path_spec.HasParent():
       type_indicator = path_spec.type_indicator
-      if type_indicator == dfvfs_definitions.TYPE_INDICATOR_TSK_PARTITION:
+      if type_indicator in (dfvfs_definitions.TYPE_INDICATOR_GPT,
+                            dfvfs_definitions.TYPE_INDICATOR_LVM,
+                            dfvfs_definitions.TYPE_INDICATOR_TSK_PARTITION):
         if location in ('\\', '/'):
           location = getattr(path_spec, 'location', None)
         break
