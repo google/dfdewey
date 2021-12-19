@@ -68,7 +68,10 @@ def get_image_id(image_path):
   with open(image_path, 'rb') as image_file:
     hash = hashlib.md5()
     hashed = 0
-    while chunk := image_file.read(8192):
+    while True:
+      chunk = image_file.read(8192)
+      if not chunk:
+        break
       hash.update(chunk)
       hashed += 1
       if hashed == 262144:
