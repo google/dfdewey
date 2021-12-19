@@ -27,7 +27,7 @@ optional arguments:
 
 ## Docker
 
-If using Elasticsearch and PostgreSQL in Docker, they can be started using
+If using OpenSearch and PostgreSQL in Docker, they can be started using
 [docker-compose](https://docs.docker.com/compose/install/) from the `docker`
 folder.
 
@@ -35,7 +35,7 @@ folder.
 docker-compose up -d
 ```
 
-Note: Java memory for Elasticsearch is set high to improve performance when
+Note: Java memory for OpenSearch is set high to improve performance when
 indexing large volumes of data. If running on a system with limited resources,
 you can change the setting in `docker/docker-compose.yml`.
 
@@ -57,7 +57,7 @@ docker build -t <docker_name> -f ./docker/Dockerfile .
 ```
 
 When running dfDewey within a Docker container, we need to give the container
-access to the host network so it will be able to access Elasticsearch and
+access to the host network so it will be able to access OpenSearch and
 PostgreSQL in their respective containers. We also need to map a folder in the
 container to allow access to the image we want to process. For example:
 

@@ -142,7 +142,7 @@ class IndexSearcherTest(unittest.TestCase):
         ])
 
   @mock.patch('logging.Logger.info')
-  @mock.patch('dfdewey.datastore.elastic.ElasticsearchDataStore.search')
+  @mock.patch('dfdewey.datastore.opensearch.OpenSearchDataStore.search')
   def test_list_search(self, mock_search, mock_output):
     """Test list search."""
     index_searcher = self._get_index_searcher()
@@ -167,7 +167,7 @@ class IndexSearcherTest(unittest.TestCase):
 
   @mock.patch('logging.Logger.info')
   @mock.patch('dfdewey.datastore.postgresql.PostgresqlDataStore')
-  @mock.patch('dfdewey.datastore.elastic.ElasticsearchDataStore.search')
+  @mock.patch('dfdewey.datastore.opensearch.OpenSearchDataStore.search')
   def test_search(self, mock_search, mock_postgresql, mock_output):
     """Test search method."""
     index_searcher = self._get_index_searcher()

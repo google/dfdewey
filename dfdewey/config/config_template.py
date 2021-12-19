@@ -19,9 +19,9 @@ PG_HOST = '127.0.0.1'
 PG_PORT = 5432
 PG_DB_NAME = 'dfdewey'
 
-# Elasticsearch Config
-ES_HOST = '127.0.0.1'
-ES_PORT = 9200
-# ES_URL can be used to specify a RFC-1738 formatted URL
-# Example: ES_URL = 'https://user:secret@127.0.0.1:9200/'
-ES_URL = None
+# OpenSearch Config
+OS_HOST = '127.0.0.1'
+OS_PORT = 9200
+# OS_URL can be used to specify a RFC-1738 formatted URL
+# Example: OS_URL = 'https://user:secret@127.0.0.1:9200/'
+OS_URL = None

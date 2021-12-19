@@ -11,28 +11,38 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-version: '2'
+version: '3'
 services:
-  elasticsearch:
+  opensearch:
+    image: opensearchproject/opensearch:latest
     environment:
+      # Set to single node deployment
       - discovery.type=single-node
-      # Java memory for Elasticsearch is set high for better performance when
+      # Disabling SSL for localhost only deployment
+      - plugins.security.disabled=true
+      # Java memory for Opensearch is set high for better performance when
       # indexing large volumes of data.
       # If running on a system with less available memory, consider using
       # something smaller, such as:
-      # - ES_JAVA_OPTS=-Xms512m -Xmx512m
-      - ES_JAVA_OPTS=-Xms32g -Xmx32g
-    image: elasticsearch:7.9.3
+      # - "OPENSEARCH_JAVA_OPTS=-Xms512m -Xmx512m"
+      # Recommend setting to 50% of system RAM
+      - "OPENSEARCH_JAVA_OPTS=-Xms32g -Xmx32g"
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+      nofile:
+        soft: 65536
+        hard: 65536
     ports:
       - "127.0.0.1:9200:9200"
-      - "127.0.0.1:9300:9300"
     restart: always
 
   postgres:
-    image: postgres
-    ports:
-      - "127.0.0.1:5432:5432"
+    image: postgres:latest
     environment:
       - POSTGRES_USER=dfdewey
       - POSTGRES_PASSWORD=password
+    ports:
+      - "127.0.0.1:5432:5432"
     restart: always

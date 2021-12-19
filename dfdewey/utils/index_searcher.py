@@ -24,7 +24,7 @@ import pytsk3
 from tabulate import tabulate
 
 import dfdewey.config as dfdewey_config
-from dfdewey.datastore.elastic import ElasticsearchDataStore
+from dfdewey.datastore.opensearch import OpenSearchDataStore
 from dfdewey.datastore.postgresql import PostgresqlDataStore
 from dfdewey.utils.image_processor import FileEntryScanner
 
@@ -71,7 +71,7 @@ class IndexSearcher():
     super().__init__()
     self.case = case
     self.config = dfdewey_config.load_config(config_file)
-    self.elasticsearch = None
+    self.opensearch = None
     self.image = image
     self.image_id = image_id
     self.images = {}
@@ -82,12 +82,12 @@ class IndexSearcher():
       self.postgresql = PostgresqlDataStore(
           host=self.config.PG_HOST, port=self.config.PG_PORT,
           db_name=self.config.PG_DB_NAME)
-      self.elasticsearch = ElasticsearchDataStore(
+      self.opensearch = OpenSearchDataStore(
           host=self.config.ES_HOST, port=self.config.ES_PORT,
           url=self.config.ES_URL)
     else:
       self.postgresql = PostgresqlDataStore()
-      self.elasticsearch = ElasticsearchDataStore()
+      self.opensearch = OpenSearchDataStore()
 
     if image != 'all':
       self.image = os.path.abspath(self.image)
@@ -331,7 +331,7 @@ class IndexSearcher():
         table_data = []
         for term in search_terms:
           term = ''.join(('"', term.strip(), '"'))
-          results = self.elasticsearch.search(index, term)
+          results = self.opensearch.search(index, term)
           hit_count = results['hits']['total']['value']
           if hit_count > 0:
             table_data.append({'Search term': term, 'Hits': hit_count})
@@ -353,7 +353,7 @@ class IndexSearcher():
     for image_hash, image_path in self.images.items():
       log.info('Searching %s (%s) for "%s"', image_path, image_hash, query)
       index = ''.join(('es', image_hash))
-      results = self.elasticsearch.search(index, query)
+      results = self.opensearch.search(index, query)
       result_count = results['hits']['total']['value']
       time_taken = results['took']
 

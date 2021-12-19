@@ -201,8 +201,8 @@ class ImageProcessorTest(unittest.TestCase):
     self.assertEqual(location, '/p1')
     self.assertEqual(start_offset, 1048576)
 
-  @mock.patch('dfdewey.datastore.elastic.ElasticsearchDataStore')
-  def test_index_record(self, mock_elasticsearch):
+  @mock.patch('dfdewey.datastore.opensearch.OpenSearchDataStore')
+  def test_index_record(self, mock_opensearch):
     """Test index record method."""
     image_processor = self._get_image_processor()
 
@@ -212,7 +212,7 @@ class ImageProcessorTest(unittest.TestCase):
     string_record.offset = 1234567
     string_record.data = 'test string'
 
-    image_processor.elasticsearch = mock_elasticsearch
+    image_processor.opensearch = mock_opensearch
     image_processor._index_record(index_name, string_record)
 
     json_record = {
@@ -221,14 +221,14 @@ class ImageProcessorTest(unittest.TestCase):
         'file_offset': string_record.file_offset,
         'data': string_record.data
     }
-    mock_elasticsearch.import_event.assert_called_once_with(
+    mock_opensearch.import_event.assert_called_once_with(
         index_name, event=json_record)
 
-  @mock.patch('elasticsearch.client.IndicesClient')
+  @mock.patch('opensearchpy.client.IndicesClient')
   @mock.patch('dfdewey.utils.image_processor.ImageProcessor._index_record')
-  @mock.patch('dfdewey.datastore.elastic.ElasticsearchDataStore.index_exists')
-  @mock.patch('dfdewey.datastore.elastic.ElasticsearchDataStore.import_event')
-  @mock.patch('dfdewey.datastore.elastic.ElasticsearchDataStore.create_index')
+  @mock.patch('dfdewey.datastore.opensearch.OpenSearchDataStore.index_exists')
+  @mock.patch('dfdewey.datastore.opensearch.OpenSearchDataStore.import_event')
+  @mock.patch('dfdewey.datastore.opensearch.OpenSearchDataStore.create_index')
   def test_index_strings(
       self, mock_create_index, mock_import_event, mock_index_exists,
       mock_index_record, _):

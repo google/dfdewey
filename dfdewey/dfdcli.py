@@ -31,7 +31,7 @@ log = logging.getLogger('dfdewey')
 
 
 class _StringRecord():
-  """Elasticsearch string record.
+  """OpenSearch string record.
 
   Attributes:
     image: Hash to identify the source image of the string

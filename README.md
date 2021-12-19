@@ -36,7 +36,7 @@ pip install -r dfvfs_requirements.txt
 ```
 
 ### Datastores
-Elasticsearch and PostgreSQL are also required to store extracted data.
+OpenSearch and PostgreSQL are also required to store extracted data.
 These can be installed separately or started in Docker using `docker-compose`.
 
 ```shell

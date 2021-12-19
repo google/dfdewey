@@ -30,7 +30,7 @@ from dfvfs.volume import tsk_volume_system
 import pytsk3
 
 import dfdewey.config as dfdewey_config
-from dfdewey.datastore.elastic import ElasticsearchDataStore
+from dfdewey.datastore.opensearch import OpenSearchDataStore
 from dfdewey.datastore.postgresql import PostgresqlDataStore
 
 BATCH_SIZE = 1500
@@ -40,7 +40,7 @@ log = logging.getLogger('dfdewey.image_processor')
 
 
 class _StringRecord():
-  """Elasticsearch string record.
+  """OpenSearch string record.
 
   Attributes:
     image: Hash to identify the source image of the string
@@ -270,7 +270,7 @@ class ImageProcessor():
 
   Attributes:
     case (str): case ID.
-    elasticsearch (ElasticsearchDataStore): elasticsearch datastore.
+    opensearch (OpenSearchDataStore): opensearch datastore.
     image_hash (str): MD5 hash of the image.
     image_id (str): image identifier.
     image_path (str): path to source image.
@@ -286,7 +286,7 @@ class ImageProcessor():
     super().__init__()
     self.case = case
     self.config = dfdewey_config.load_config(config_file=config_file)
-    self.elasticsearch = None
+    self.opensearch = None
     self.image_hash = None
     self.image_id = image_id
     self.image_path = image_path
@@ -416,7 +416,7 @@ class ImageProcessor():
     """Index a single record.
 
     Args:
-      index_name: ID of the elasticsearch index.
+      index_name: ID of the opensearch index.
       string_record: String record to be indexed.
 
     Returns:
@@ -428,27 +428,27 @@ class ImageProcessor():
         'file_offset': string_record.file_offset,
         'data': string_record.data
     }
-    return self.elasticsearch.import_event(index_name, event=json_record)
+    return self.opensearch.import_event(index_name, event=json_record)
 
   def _index_strings(self):
     """Index the extracted strings."""
     if self.config:
-      self.elasticsearch = ElasticsearchDataStore(
+      self.OpenSearch = OpenSearchDataStore(
           host=self.config.ES_HOST, port=self.config.ES_PORT,
           url=self.config.ES_URL)
     else:
-      self.elasticsearch = ElasticsearchDataStore()
+      self.opensearch = OpenSearchDataStore()
     index_name = ''.join(('es', self.image_hash))
-    index_exists = self.elasticsearch.index_exists(index_name)
+    index_exists = self.opensearch.index_exists(index_name)
     if index_exists:
       log.info('Image already indexed: [%s]', self.image_path)
       if self.options.reindex:
         log.info('Reindexing.')
-        self.elasticsearch.delete_index(index_name)
+        self.opensearch.delete_index(index_name)
         log.info('Index %s deleted.', index_name)
         index_exists = False
     if not index_exists:
-      index_name = self.elasticsearch.create_index(index_name=index_name)
+      index_name = self.opensearch.create_index(index_name=index_name)
       log.info('Index %s created.', index_name)
 
       string_list = os.path.join(self.output_path, 'wordlist.txt')
@@ -482,7 +482,7 @@ class ImageProcessor():
             if records % STRING_INDEXING_LOG_INTERVAL == 0:
               log.info('Indexed %d records...', records)
       # Flush the import buffer
-      records = self.elasticsearch.import_event(index_name)
+      records = self.opensearch.import_event(index_name)
       log.info('Indexed %d records...', records)
 
   def _initialise_database(self):

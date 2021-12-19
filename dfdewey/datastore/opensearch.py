@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Copyright 2020 Google LLC
+# Copyright 2021 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,15 +12,15 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""Elasticsearch datastore."""
+"""Opensearch datastore."""
 
 import collections
 
-from elasticsearch import Elasticsearch
-from elasticsearch import exceptions
+from opensearchpy import OpenSearch
+from opensearchpy import exceptions
 
 
-class ElasticsearchDataStore():
+class OpenSearchDataStore():
   """Implements the datastore."""
 
   # Number of events to queue up when bulk inserting events.
@@ -28,24 +28,24 @@ class ElasticsearchDataStore():
   DEFAULT_SIZE = 1000  # Max events to return
 
   def __init__(self, host='127.0.0.1', port=9200, url=None):
-    """Create an Elasticsearch client."""
+    """Create an OpenSearch client."""
     super().__init__()
     if url:
-      self.client = Elasticsearch([url], timeout=30)
+      self.client = OpenSearch([url], timeout=30)
     else:
-      self.client = Elasticsearch([{'host': host, 'port': port}], timeout=30)
+      self.client = OpenSearch([{'host': host, 'port': port}], timeout=30)
     self.import_counter = collections.Counter()
     self.import_events = []
 
   @staticmethod
   def build_query(query_string):
-    """Build Elasticsearch DSL query.
+    """Build OpenSearch DSL query.
 
     Args:
       query_string: Query string
 
     Returns:
-      Elasticsearch DSL query as a dictionary
+      OpenSearch DSL query as a dictionary
     """
 
     query_dsl = {
@@ -80,7 +80,7 @@ class ElasticsearchDataStore():
     return index_name
 
   def delete_index(self, index_name):
-    """Delete Elasticsearch index.
+    """Delete OpenSearch index.
 
     Args:
       index_name: Name of the index to delete.
@@ -93,10 +93,10 @@ class ElasticsearchDataStore():
 
   def import_event(
       self, index_name, event=None, flush_interval=DEFAULT_FLUSH_INTERVAL):
-    """Add event to Elasticsearch.
+    """Add event to OpenSearch.
 
     Args:
-      index_name: Name of the index in Elasticsearch
+      index_name: Name of the index in OpenSearch
       event: Event dictionary
       flush_interval: Number of events to queue up before indexing
 
@@ -104,7 +104,7 @@ class ElasticsearchDataStore():
       The number of events processed.
     """
     if event:
-      # Header needed by Elasticsearch when bulk inserting.
+      # Header needed by OpenSearch when bulk inserting.
       header = {'index': {'_index': index_name}}
 
       self.import_events.append(header)
@@ -133,11 +133,11 @@ class ElasticsearchDataStore():
     return self.client.indices.exists(index_name)
 
   def search(self, index_id, query_string, size=DEFAULT_SIZE):
-    """Search ElasticSearch.
+    """Search OpenSearch.
 
     This will take a query string from the UI together with a filter definition.
-    Based on this it will execute the search request on ElasticSearch and get
-    the result back.
+    Based on this it will execute the search request on OpenSearch and get the
+    result back.
 
     Args:
       index_id: Index to be searched
@@ -150,7 +150,7 @@ class ElasticsearchDataStore():
 
     query_dsl = self.build_query(query_string)
 
-    # Default search type for elasticsearch is query_then_fetch.
+    # Default search type for OpenSearch is query_then_fetch.
     search_type = 'query_then_fetch'
 
     # pylint: disable=unexpected-keyword-arg
