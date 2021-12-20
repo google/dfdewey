@@ -83,8 +83,8 @@ class IndexSearcher():
           host=self.config.PG_HOST, port=self.config.PG_PORT,
           db_name=self.config.PG_DB_NAME)
       self.opensearch = OpenSearchDataStore(
-          host=self.config.ES_HOST, port=self.config.ES_PORT,
-          url=self.config.ES_URL)
+          host=self.config.OS_HOST, port=self.config.OS_PORT,
+          url=self.config.OS_URL)
     else:
       self.postgresql = PostgresqlDataStore()
       self.opensearch = OpenSearchDataStore()
