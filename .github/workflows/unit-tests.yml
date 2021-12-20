@@ -5,8 +5,38 @@ on:
     types: [opened, synchronize, reopened]
 
 jobs:
-  build:
-    runs-on: ubuntu-latest
+  build-bionic:
+    runs-on: ubuntu-18.04
+    strategy:
+      matrix:
+        include:
+        - python-version: '3.6'
+        - python-version: '3.7'
+
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: Set up Python ${{ matrix.python-version }}
+        env:
+          DEBIAN_FRONTEND: noninteractive
+        run: |
+          sudo apt update -q
+          sudo apt install -y software-properties-common
+
+      - name: Install dependencies
+        env:
+          DEBIAN_FRONTEND: noninteractive
+        run: |
+          sudo add-apt-repository -y ppa:gift/stable
+          sudo apt update -q
+          sudo apt install -y python${{ matrix.python-version }} python3-dfvfs python3-pip python3-setuptools
+          python3 -m pip install .[dev]
+
+      - name: Run unit tests
+        run: python3 run_tests.py
+
+  build-focal:
+    runs-on: ubuntu-20.04
     strategy:
       matrix:
         include:

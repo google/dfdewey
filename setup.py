@@ -49,6 +49,7 @@ setup(
     name='dfDewey',
     version=dfdewey.__version__,
     description=DFDEWEY_DESCRIPTION,
+    long_description=DFDEWEY_DESCRIPTION,
     license='Apache License, Version 2.0',
     url='https://github.com/google/dfdewey',
     maintainer='dfDewey development team',

@@ -19,7 +19,7 @@ import logging
 import os
 
 CONFIG_ENV = [
-    'PG_HOST', 'PG_PORT', 'PG_DB_NAME', 'ES_HOST', 'ES_PORT', 'ES_URL'
+    'PG_HOST', 'PG_PORT', 'PG_DB_NAME', 'OS_HOST', 'OS_PORT', 'OS_URL'
 ]
 CONFIG_FILE = '.dfdeweyrc'
 # Look in homedir first, then current dir
@@ -51,7 +51,7 @@ def load_config(config_file=None):
       for config_var in CONFIG_ENV:
         config_env = os.environ.get('_'.join(('DFDEWEY', config_var)))
         if not config_env:
-          if config_var == 'ES_URL':
+          if config_var == 'OS_URL':
             config_str += '{0:s} = {1:s}\n'.format(config_var, 'None')
             break
           else:

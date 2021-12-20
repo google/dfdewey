@@ -12,28 +12,28 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""Tests for elasticsearch datastore."""
+"""Tests for opensearch datastore."""
 
 import unittest
 import mock
 
-from elasticsearch import exceptions
+from opensearchpy import exceptions
 
-from dfdewey.datastore.elastic import ElasticsearchDataStore
+from dfdewey.datastore.opensearch import OpenSearchDataStore
 
 TEST_INDEX_NAME = ''.join(('es', 'd41d8cd98f00b204e9800998ecf8427e'))
 
 
-class ElasticTest(unittest.TestCase):
-  """Tests for Elasticsearch datastore."""
+class OpenSearchTest(unittest.TestCase):
+  """Tests for OpenSearch datastore."""
 
   def _get_datastore(self):
-    """Get a mock elasticsearch datastore.
+    """Get a mock opensearch datastore.
 
     Returns:
-      Mock elasticsearch datastore.
+      Mock opensearch datastore.
     """
-    es = ElasticsearchDataStore()
+    es = OpenSearchDataStore()
     return es
 
   def test_build_query(self):
@@ -56,8 +56,8 @@ class ElasticTest(unittest.TestCase):
 
     self.assertEqual(query, query_dsl)
 
-  @mock.patch('elasticsearch.client.IndicesClient.create')
-  @mock.patch('elasticsearch.client.IndicesClient.exists')
+  @mock.patch('opensearchpy.client.IndicesClient.create')
+  @mock.patch('opensearchpy.client.IndicesClient.exists')
   def test_create_index(self, mock_exists, mock_create):
     """Test create index method."""
     es = self._get_datastore()
@@ -71,8 +71,8 @@ class ElasticTest(unittest.TestCase):
     with self.assertRaises(RuntimeError):
       result = es.create_index(TEST_INDEX_NAME)
 
-  @mock.patch('elasticsearch.client.IndicesClient.delete')
-  @mock.patch('elasticsearch.client.IndicesClient.exists')
+  @mock.patch('opensearchpy.client.IndicesClient.delete')
+  @mock.patch('opensearchpy.client.IndicesClient.exists')
   def test_delete_index(self, mock_exists, mock_delete):
     """Test delete index method."""
     es = self._get_datastore()
@@ -131,7 +131,7 @@ class ElasticTest(unittest.TestCase):
       result = es.import_event(TEST_INDEX_NAME, test_event, flush_interval=1)
       self.assertEqual(result, 1)
 
-  @mock.patch('elasticsearch.client.IndicesClient.exists')
+  @mock.patch('opensearchpy.client.IndicesClient.exists')
   def test_index_exists(self, mock_exists):
     """Test index exists method."""
     es = self._get_datastore()
@@ -139,8 +139,8 @@ class ElasticTest(unittest.TestCase):
     es.index_exists(TEST_INDEX_NAME)
     mock_exists.assert_called_once_with(TEST_INDEX_NAME)
 
-  @mock.patch('elasticsearch.Elasticsearch.search')
-  @mock.patch('elasticsearch.client.IndicesClient.exists')
+  @mock.patch('opensearchpy.OpenSearch.search')
+  @mock.patch('opensearchpy.client.IndicesClient.exists')
   def test_search(self, mock_exists, mock_search):
     """Test search method."""
     es = self._get_datastore()
