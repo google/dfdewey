@@ -433,7 +433,7 @@ class ImageProcessor():
   def _index_strings(self):
     """Index the extracted strings."""
     if self.config:
-      self.OpenSearch = OpenSearchDataStore(
+      self.opensearch = OpenSearchDataStore(
           host=self.config.OS_HOST, port=self.config.OS_PORT,
           url=self.config.OS_URL)
     else:
