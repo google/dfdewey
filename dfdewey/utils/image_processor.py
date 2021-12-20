@@ -433,9 +433,9 @@ class ImageProcessor():
   def _index_strings(self):
     """Index the extracted strings."""
     if self.config:
-      self.OpenSearch = OpenSearchDataStore(
-          host=self.config.ES_HOST, port=self.config.ES_PORT,
-          url=self.config.ES_URL)
+      self.opensearch = OpenSearchDataStore(
+          host=self.config.OS_HOST, port=self.config.OS_PORT,
+          url=self.config.OS_URL)
     else:
       self.opensearch = OpenSearchDataStore()
     index_name = ''.join(('es', self.image_hash))
