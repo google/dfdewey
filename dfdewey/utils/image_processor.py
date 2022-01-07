@@ -178,9 +178,12 @@ class FileEntryScanner(volume_scanner.VolumeScanner):
               'files (inum, filename, part)', self._rows)
           self._rows = []
 
-    for sub_file_entry in file_entry.sub_file_entries:
-      self._list_file_entry(
-          file_system, sub_file_entry, path_segments, location)
+    try:
+      for sub_file_entry in file_entry.sub_file_entries:
+        self._list_file_entry(
+            file_system, sub_file_entry, path_segments, location)
+    except (OSError, dfvfs_errors.AccessError, dfvfs_errors.BackEndError) as e:
+      log.warning('Unable to list file entries: {0!s}'.format(e))
 
   def get_volume_extents(self, image_path):
     """Gets the extents of all volumes.
