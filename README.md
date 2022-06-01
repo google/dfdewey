@@ -20,7 +20,7 @@ sudo apt install -y bulk-extractor
 ```
 
 ### dfVFS
-[dfVFS](https://github.com/log2timeline/dfvfs) is requred for image parsing. It
+[dfVFS](https://github.com/log2timeline/dfvfs) is required for image parsing. It
 can be installed from the GIFT PPA.
 
 ```shell
