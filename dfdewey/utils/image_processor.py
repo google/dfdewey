@@ -290,7 +290,7 @@ class ImageProcessor():
     self.case = case
     self.config = dfdewey_config.load_config(config_file=config_file)
     self.opensearch = None
-    self.image_hash = None
+    self.image_hash = image_id
     self.image_id = image_id
     self.image_path = image_path
     self.options = options
@@ -355,6 +355,7 @@ class ImageProcessor():
 
     Extract strings from the image using bulk_extractor.
     """
+    self.output_path = tempfile.mkdtemp()
     cmd = [
         'bulk_extractor', '-o', self.output_path, '-x', 'all', '-e', 'wordlist'
     ]
@@ -371,11 +372,9 @@ class ImageProcessor():
 
     log.info('Running bulk_extractor: [%s]', ' '.join(cmd))
     try:
-      output = subprocess.check_output(cmd)
+      subprocess.check_call(cmd)
     except subprocess.CalledProcessError as e:
       raise RuntimeError('String extraction failed.') from e
-    md5_offset = output.index(b'MD5') + 19
-    self.image_hash = output[md5_offset:md5_offset + 32].decode('utf-8')
 
   def _get_volume_details(self, path_spec):
     """Logs volume details for the given path spec.
@@ -588,14 +587,13 @@ class ImageProcessor():
 
   def process_image(self):
     """Process the image."""
-    self.output_path = tempfile.mkdtemp()
-    log.info('* Processing start: %s', datetime.now())
-    self._extract_strings()
-    log.info('String extraction complete.')
-
     log.info('* Parsing image: %s', datetime.now())
     self._parse_filesystems()
     log.info('Parsing complete.')
+
+    log.info('* Extracting strings: %s', datetime.now())
+    self._extract_strings()
+    log.info('String extraction complete.')
 
     log.info('* Indexing strings: %s', datetime.now())
     self._index_strings()

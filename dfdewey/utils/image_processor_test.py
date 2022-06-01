@@ -141,28 +141,23 @@ class ImageProcessorTest(unittest.TestCase):
     ]
     mock_postgresql.execute.assert_has_calls(calls)
 
-  @mock.patch('subprocess.check_output')
-  def test_extract_strings(self, mock_subprocess):
+  @mock.patch('tempfile.mkdtemp')
+  @mock.patch('subprocess.check_call')
+  def test_extract_strings(self, mock_subprocess, mock_mkdtemp):
     """Test extract strings method."""
     image_processor = self._get_image_processor()
-    image_processor.output_path = '/tmp/tmpxaemz75r'
-    image_processor.image_hash = None
+    mock_mkdtemp.return_value = '/tmp/tmpxaemz75r'
 
     # Test with default options
-    mock_subprocess.return_value = 'MD5 of Disk Image: {0:s}'.format(
-        TEST_IMAGE_HASH).encode('utf-8')
     image_processor._extract_strings()
     mock_subprocess.assert_called_once_with([
         'bulk_extractor', '-o', '/tmp/tmpxaemz75r', '-x', 'all', '-e',
         'wordlist', '-e', 'base64', '-e', 'gzip', '-e', 'zip', '-S',
         'strings=YES', '-S', 'word_max=1000000', TEST_IMAGE
     ])
-    self.assertEqual(image_processor.image_hash, TEST_IMAGE_HASH)
 
     # Test options
     mock_subprocess.reset_mock()
-    mock_subprocess.return_value = 'MD5 of Disk Image: {0:s}'.format(
-        TEST_IMAGE_HASH).encode('utf-8')
     image_processor.options.base64 = False
     image_processor.options.gunzip = False
     image_processor.options.unzip = False
