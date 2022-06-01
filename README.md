@@ -8,16 +8,19 @@ dfDewey is a digital forensics string extraction, indexing, and searching tool.
 ## Requirements
 ### bulk_extractor
 dfDewey currently requires bulk_extractor for string extraction.
-bulk_extractor can be downloaded and built from source here:
-https://github.com/simsong/bulk_extractor
 
-bulk_extractor can also be installed from the GIFT PPA.
+bulk_extractor can be installed from the GIFT PPA.
 
 ```shell
 sudo add-apt-repository ppa:gift/stable
 sudo apt update
 sudo apt install -y bulk-extractor
 ```
+
+bulk_extractor can also be downloaded and built from source here:
+https://github.com/simsong/bulk_extractor
+
+Note: bulk_extractor v1.6.0 is recommended (v2.0.0 is not yet supported).
 
 ### dfVFS
 [dfVFS](https://github.com/log2timeline/dfvfs) is required for image parsing. It
