@@ -313,7 +313,7 @@ class ImageProcessor():
 
     image_exists = False
     if not tables_exist:
-      self._initialise_database()
+      self.postgresql.initialise_database()
     else:
       image_exists = self.postgresql.value_exists(
           'images', 'image_id', self.image_id)
@@ -322,33 +322,16 @@ class ImageProcessor():
     # case.
     image_case_exists = False
     if image_exists:
-      image_case = self.postgresql.query_single_row((
-          'SELECT 1 from image_case '
-          'WHERE image_id = \'{0:s}\' AND case_id = \'{1:s}\'').format(
-              self.image_id, self.case))
-      if image_case:
-        image_case_exists = True
+      image_case_exists = self.postgresql.is_image_in_case(
+          self.image_id, self.case)
     else:
-      self.postgresql.execute((
-          'INSERT INTO images (image_id, image_path, image_hash) '
-          'VALUES (\'{0:s}\', \'{1:s}\', \'{2:s}\')').format(
-              self.image_id, self.image_path, self.image_hash))
+      self.postgresql.insert_image(
+          self.image_id, self.image_path, self.image_hash)
 
     if not image_case_exists:
-      self.postgresql.execute((
-          'INSERT INTO image_case (case_id, image_id) '
-          'VALUES (\'{0:s}\', \'{1:s}\')').format(self.case, self.image_id))
+      self.postgresql.link_image_to_case(self.image_id, self.case)
 
     return image_exists
-
-  def _create_filesystem_database(self):
-    """Create a filesystem database for the image."""
-    self.postgresql.execute((
-        'CREATE TABLE blocks (block INTEGER, inum INTEGER, part TEXT, '
-        'PRIMARY KEY (block, inum, part))'))
-    self.postgresql.execute((
-        'CREATE TABLE files (inum INTEGER, filename TEXT, part TEXT, '
-        'PRIMARY KEY (inum, filename, part))'))
 
   def _extract_strings(self):
     """String extraction.
@@ -487,17 +470,6 @@ class ImageProcessor():
       records = self.opensearch.import_event(index_name)
       log.info('Indexed %d records...', records)
 
-  def _initialise_database(self):
-    """Initialse the image database."""
-    self.postgresql.execute((
-        'CREATE TABLE images (image_id TEXT PRIMARY KEY, image_path TEXT, '
-        'image_hash TEXT)'))
-
-    self.postgresql.execute((
-        'CREATE TABLE image_case ('
-        'case_id TEXT, image_id TEXT REFERENCES images(image_id), '
-        'PRIMARY KEY (case_id, image_id))'))
-
   def _parse_filesystems(self):
     """Filesystem parsing.
 
@@ -509,18 +481,22 @@ class ImageProcessor():
           db_name=self.config.PG_DB_NAME, autocommit=True)
     else:
       self.postgresql = PostgresqlDataStore(autocommit=True)
-    if self._already_parsed():
+    already_parsed = self._already_parsed()
+    if already_parsed:
       log.info('Image already parsed: [%s]', self.image_path)
-    else:
+      if self.options.reparse:
+        log.info('Reparsing.')
+        #TODO
+    if not already_parsed:
       db_name = ''.join(('fs', self.image_hash))
-      self.postgresql.execute('CREATE DATABASE {0:s}'.format(db_name))
+      self.postgresql.create_database(db_name)
       if self.config:
         self.postgresql.switch_database(
             host=self.config.PG_HOST, port=self.config.PG_PORT, db_name=db_name)
       else:
         self.postgresql.switch_database(db_name=db_name)
 
-      self._create_filesystem_database()
+      self.postgresql.create_filesystem_database()
 
       # Scan image for volumes
       options = volume_scanner.VolumeScannerOptions()
@@ -611,10 +587,12 @@ class ImageProcessorOptions():
     unzip (bool): decompress zip.
   """
 
-  def __init__(self, base64=True, gunzip=True, unzip=True, reindex=False):
+  def __init__(
+      self, base64=True, gunzip=True, unzip=True, reparse=False, reindex=False):
     """Initialise image processor options."""
     super().__init__()
     self.base64 = base64
     self.gunzip = gunzip
     self.unzip = unzip
+    self.reparse = reparse
     self.reindex = reindex

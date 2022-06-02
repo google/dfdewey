@@ -79,10 +79,8 @@ class ImageProcessorTest(unittest.TestCase):
     image_processor.image_hash = TEST_IMAGE_HASH
     return image_processor
 
-  @mock.patch(
-      'dfdewey.utils.image_processor.ImageProcessor._initialise_database')
   @mock.patch('dfdewey.datastore.postgresql.PostgresqlDataStore')
-  def test_already_parsed(self, mock_postgresql, mock_initialise_database):
+  def test_already_parsed(self, mock_postgresql):
     """Test already parsed method."""
     image_processor = self._get_image_processor()
 
@@ -91,55 +89,31 @@ class ImageProcessorTest(unittest.TestCase):
     image_processor.postgresql = mock_postgresql
     result = image_processor._already_parsed()
 
-    mock_initialise_database.assert_called_once()
-    calls = [
-        mock.call((
-            'INSERT INTO images (image_id, image_path, image_hash) '
-            'VALUES (\'{0:s}\', \'{1:s}\', \'{2:s}\')').format(
-                TEST_IMAGE_ID, TEST_IMAGE, TEST_IMAGE_HASH)),
-        mock.call((
-            'INSERT INTO image_case (case_id, image_id) '
-            'VALUES (\'{0:s}\', \'{1:s}\')').format(TEST_CASE, TEST_IMAGE_ID))
-    ]
-    mock_postgresql.execute.assert_has_calls(calls)
+    mock_postgresql.initialise_database.assert_called_once()
+    mock_postgresql.insert_image.assert_called_once_with(
+        TEST_IMAGE_ID, TEST_IMAGE, TEST_IMAGE_HASH)
+    mock_postgresql.link_image_to_case.assert_called_once_with(
+        TEST_IMAGE_ID, TEST_CASE)
     self.assertEqual(result, False)
 
     # Test database exists, image already in case
     mock_postgresql.table_exists.return_value = True
     mock_postgresql.value_exists.return_value = True
-    mock_postgresql.query_single_row.return_value = (1,)
-    mock_postgresql.execute.reset_mock()
+    mock_postgresql.is_image_in_case.return_value = True
+    mock_postgresql.link_image_to_case.reset_mock()
 
     image_processor.postgresql = mock_postgresql
     result = image_processor._already_parsed()
-    mock_postgresql.execute.assert_not_called()
+    mock_postgresql.link_image_to_case.assert_not_called()
     self.assertEqual(result, True)
 
     # Test database exists, image exists, but not in case
-    mock_postgresql.query_single_row.return_value = None
+    mock_postgresql.is_image_in_case.return_value = False
     image_processor.postgresql = mock_postgresql
     result = image_processor._already_parsed()
-    mock_postgresql.execute.assert_called_once_with((
-        'INSERT INTO image_case (case_id, image_id) '
-        'VALUES (\'{0:s}\', \'{1:s}\')').format(TEST_CASE, TEST_IMAGE_ID))
+    mock_postgresql.link_image_to_case.assert_called_once_with(
+        TEST_IMAGE_ID, TEST_CASE)
     self.assertEqual(result, True)
-
-  @mock.patch('dfdewey.datastore.postgresql.PostgresqlDataStore')
-  def test_create_filesystem_database(self, mock_postgresql):
-    """Test create filesystem database method."""
-    image_processor = self._get_image_processor()
-    image_processor.postgresql = mock_postgresql
-    image_processor._create_filesystem_database()
-
-    calls = [
-        mock.call((
-            'CREATE TABLE blocks (block INTEGER, inum INTEGER, part TEXT, '
-            'PRIMARY KEY (block, inum, part))')),
-        mock.call((
-            'CREATE TABLE files (inum INTEGER, filename TEXT, part TEXT, '
-            'PRIMARY KEY (inum, filename, part))'))
-    ]
-    mock_postgresql.execute.assert_has_calls(calls)
 
   @mock.patch('tempfile.mkdtemp')
   @mock.patch('subprocess.check_call')
@@ -259,28 +233,11 @@ class ImageProcessorTest(unittest.TestCase):
     self.assertEqual(mock_index_record.call_count, 3)
     mock_import_event.assert_called_once()
 
-  @mock.patch('dfdewey.datastore.postgresql.PostgresqlDataStore')
-  def test_initialise_database(self, mock_postgresql):
-    """Test initialise database method."""
-    image_processor = self._get_image_processor()
-    image_processor.postgresql = mock_postgresql
-    calls = [
-        mock.call(
-            'CREATE TABLE images (image_id TEXT PRIMARY KEY, image_path TEXT, image_hash TEXT)'
-        ),
-        mock.call((
-            'CREATE TABLE image_case ('
-            'case_id TEXT, image_id TEXT REFERENCES images(image_id), '
-            'PRIMARY KEY (case_id, image_id))'))
-    ]
-    image_processor._initialise_database()
-    mock_postgresql.execute.assert_has_calls(calls)
-
   @mock.patch('psycopg2.connect')
   @mock.patch('dfdewey.utils.image_processor.ImageProcessor._already_parsed')
   @mock.patch(
       'dfdewey.datastore.postgresql.PostgresqlDataStore.switch_database')
-  @mock.patch('dfdewey.datastore.postgresql.PostgresqlDataStore.execute')
+  @mock.patch('dfdewey.datastore.postgresql.PostgresqlDataStore._execute')
   @mock.patch('dfdewey.datastore.postgresql.PostgresqlDataStore.bulk_insert')
   def test_parse_filesystems(
       self, mock_bulk_insert, mock_execute, mock_switch_database,
