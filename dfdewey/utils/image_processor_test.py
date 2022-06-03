@@ -243,12 +243,20 @@ class ImageProcessorTest(unittest.TestCase):
       self, mock_bulk_insert, mock_execute, mock_switch_database,
       mock_already_parsed, _):
     """Test parse filesystems method."""
+    db_name = ''.join(('fs', TEST_IMAGE_HASH))
     image_processor = self._get_image_processor()
 
     # Test image already parsed
     mock_already_parsed.return_value = True
     image_processor._parse_filesystems()
     mock_execute.assert_not_called()
+
+    # Test reparse flag
+    image_processor.options.reparse = True
+    image_processor._parse_filesystems()
+    mock_execute.assert_any_call('DROP DATABASE {0:s}'.format(db_name))
+    mock_execute.reset_mock()
+    mock_switch_database.reset_mock()
 
     # Test image not parsed
     current_path = os.path.abspath(os.path.dirname(__file__))
@@ -257,8 +265,7 @@ class ImageProcessorTest(unittest.TestCase):
     mock_already_parsed.return_value = False
     image_processor._parse_filesystems()
     self.assertEqual(mock_execute.call_count, 3)
-    mock_switch_database.assert_called_once_with(
-        db_name=''.join(('fs', TEST_IMAGE_HASH)))
+    mock_switch_database.assert_called_once_with(db_name=db_name)
     self.assertIsInstance(image_processor.scanner, FileEntryScanner)
     self.assertEqual(len(image_processor.path_specs), 2)
     ntfs_path_spec = image_processor.path_specs[0]

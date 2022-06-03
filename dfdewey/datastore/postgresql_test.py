@@ -64,6 +64,15 @@ class PostgresqlTest(unittest.TestCase):
       ]
       mock_execute.assert_has_calls(calls)
 
+  def test_delete_filesystem_database(self):
+    """Test delete filesystem database method."""
+    db = self._get_datastore()
+    db_name = ''.join(('fs', TEST_IMAGE_HASH))
+    with mock.patch.object(db.cursor, 'execute') as mock_execute:
+      db.delete_filesystem_database(db_name)
+      mock_execute.assert_called_once_with(
+          'DROP DATABASE {0:s}'.format(db_name))
+
   def test_execute(self):
     """Test execute method."""
     db = self._get_datastore()

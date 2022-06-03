@@ -482,13 +482,15 @@ class ImageProcessor():
     else:
       self.postgresql = PostgresqlDataStore(autocommit=True)
     already_parsed = self._already_parsed()
+    db_name = ''.join(('fs', self.image_hash))
     if already_parsed:
       log.info('Image already parsed: [%s]', self.image_path)
       if self.options.reparse:
         log.info('Reparsing.')
-        #TODO
+        self.postgresql.delete_filesystem_database(db_name)
+        log.info('Database %s deleted.', db_name)
+        already_parsed = False
     if not already_parsed:
-      db_name = ''.join(('fs', self.image_hash))
       self.postgresql.create_database(db_name)
       if self.config:
         self.postgresql.switch_database(

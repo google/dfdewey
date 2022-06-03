@@ -107,9 +107,13 @@ class PostgresqlDataStore():
         'CREATE TABLE files (inum INTEGER, filename TEXT, part TEXT, '
         'PRIMARY KEY (inum, filename, part))'))
 
-  def delete_filesystem_database(self):
-    """Delete the filesystem database for the image."""
-    #TODO
+  def delete_filesystem_database(self, db_name):
+    """Delete the filesystem database for the image.
+
+    Args:
+      db_name: The name of the database to drop
+    """
+    self._execute('DROP DATABASE {0:s}'.format(db_name))
 
   def get_case_images(self, case):
     """Get all images for the case.
