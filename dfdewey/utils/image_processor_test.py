@@ -115,6 +115,48 @@ class ImageProcessorTest(unittest.TestCase):
         TEST_IMAGE_ID, TEST_CASE)
     self.assertEqual(result, True)
 
+  @mock.patch(
+      'dfdewey.utils.image_processor.ImageProcessor._connect_opensearch_datastore'
+  )
+  @mock.patch(
+      'dfdewey.utils.image_processor.ImageProcessor._connect_postgresql_datastore'
+  )
+  @mock.patch('dfdewey.datastore.opensearch.OpenSearchDataStore')
+  @mock.patch('dfdewey.datastore.postgresql.PostgresqlDataStore')
+  def test_delete_image_data(
+      self, mock_postgresql, mock_opensearch, mock_connect_postgres,
+      mock_connect_opensearch):
+    """Test delete image data method."""
+    image_processor = self._get_image_processor()
+    image_processor.postgresql = mock_postgresql
+    image_processor.opensearch = mock_opensearch
+    # Test if image is not in case
+    mock_postgresql.is_image_in_case.return_value = False
+    image_processor._delete_image_data()
+    mock_connect_postgres.assert_called_once()
+    mock_postgresql.unlink_image_from_case.assert_not_called()
+
+    # Test if image is linked to multiple cases
+    mock_postgresql.is_image_in_case.return_value = True
+    mock_postgresql.get_image_cases.return_value = ['test']
+    image_processor._delete_image_data()
+    mock_postgresql.get_image_cases.assert_called_once()
+    mock_connect_opensearch.assert_not_called()
+
+    # Test if index exists
+    mock_postgresql.get_image_cases.return_value = None
+    mock_opensearch.index_exists.return_value = True
+    image_processor._delete_image_data()
+    mock_opensearch.delete_index.assert_called_once()
+    mock_postgresql.delete_filesystem_database.assert_called_once()
+    mock_postgresql.delete_image.assert_called_once()
+
+    # Test if index doesn't exist
+    mock_opensearch.delete_index.reset_mock()
+    mock_opensearch.index_exists.return_value = False
+    image_processor._delete_image_data()
+    mock_opensearch.delete_index.assert_not_called()
+
   @mock.patch('tempfile.mkdtemp')
   @mock.patch('subprocess.check_call')
   def test_extract_strings(self, mock_subprocess, mock_mkdtemp):
@@ -296,17 +338,20 @@ class ImageProcessorTest(unittest.TestCase):
         current_path, '..', '..', 'test_data', 'test.dmg')
     image_processor._parse_filesystems()
 
+  @mock.patch('dfdewey.utils.image_processor.ImageProcessor._delete_image_data')
   @mock.patch('dfdewey.utils.image_processor.ImageProcessor._parse_filesystems')
   @mock.patch('dfdewey.utils.image_processor.ImageProcessor._index_strings')
   @mock.patch('dfdewey.utils.image_processor.ImageProcessor._extract_strings')
   def test_process_image(
-      self, mock_extract_strings, mock_index_strings, mock_parse_filesystems):
+      self, mock_extract_strings, mock_index_strings, mock_parse_filesystems,
+      mock_delete_image_data):
     """Test process image method."""
     image_processor = self._get_image_processor()
     image_processor.process_image()
     mock_extract_strings.assert_called_once()
     mock_index_strings.assert_called_once()
     mock_parse_filesystems.assert_called_once()
+    mock_delete_image_data.assert_not_called()
 
 
 if __name__ == '__main__':

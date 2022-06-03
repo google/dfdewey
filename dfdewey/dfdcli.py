@@ -101,7 +101,7 @@ def main():
       sys.exit(1)
     image_processor_options = ImageProcessorOptions(
         not args.no_base64, not args.no_gzip, not args.no_zip, args.reparse,
-        args.reindex)
+        args.reindex, args.delete)
     image_processor = ImageProcessor(
         args.case, image_id, os.path.abspath(args.image),
         image_processor_options, args.config)
@@ -141,6 +141,9 @@ def parse_args():
       action='store_true')
   parser.add_argument(
       '--reindex', help='recreate index (will delete existing index)',
+      action='store_true')
+  parser.add_argument(
+      '--delete', help='delete image (filesystem mapping and index)',
       action='store_true')
 
   # Search args

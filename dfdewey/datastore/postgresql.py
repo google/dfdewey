@@ -115,6 +115,15 @@ class PostgresqlDataStore():
     """
     self._execute('DROP DATABASE {0:s}'.format(db_name))
 
+  def delete_image(self, image_id):
+    """Delete an image from the database.
+
+    Args:
+      image_id: Image identifier
+    """
+    self._execute(
+        'DELETE FROM images WHERE image_id = \'{0:s}\''.format(image_id))
+
   def get_case_images(self, case):
     """Get all images for the case.
 
@@ -149,6 +158,22 @@ class PostgresqlDataStore():
     for result in results:
       filenames.append(result[0])
     return filenames
+
+  def get_image_cases(self, image_id):
+    """Get a list of cases the image is linked to.
+
+    Args:
+      image_id: Image identifier
+
+    Returns:
+      List of cases or None.
+    """
+    cases = self._query(
+        'SELECT case_id FROM image_case WHERE image_id = \'{0:s}\''.format(
+            image_id))
+    for c in range(len(cases)):
+      cases[c] = cases[c][0]
+    return cases
 
   def get_image_hash(self, image_id):
     """Get an image hash from the database.
@@ -275,6 +300,19 @@ class PostgresqlDataStore():
             table_schema, table_name))
 
     return self.cursor.fetchone() is not None
+
+  def unlink_image_from_case(self, image_id, case):
+    """Removes an image from a case.
+
+    Args:
+      image_id: Image identifier
+      case: Case name
+    """
+    self._execute(
+        """
+        DELETE FROM image_case
+        WHERE case_id = '{0:s}' AND image_id = '{1:s}'""".format(
+            case, image_id))
 
   def value_exists(self, table_name, column_name, value):
     """Check if a value exists in a table.

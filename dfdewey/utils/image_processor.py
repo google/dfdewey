@@ -333,6 +333,72 @@ class ImageProcessor():
 
     return image_exists
 
+  def _connect_opensearch_datastore(self):
+    """Connect to the Opensearch datastore."""
+    if self.config:
+      self.opensearch = OpenSearchDataStore(
+          host=self.config.OS_HOST, port=self.config.OS_PORT,
+          url=self.config.OS_URL)
+    else:
+      self.opensearch = OpenSearchDataStore()
+
+  def _connect_postgresql_datastore(self):
+    """Connect to the PostgreSQL datastore."""
+    if self.config:
+      self.postgresql = PostgresqlDataStore(
+          host=self.config.PG_HOST, port=self.config.PG_PORT,
+          db_name=self.config.PG_DB_NAME, autocommit=True)
+    else:
+      self.postgresql = PostgresqlDataStore(autocommit=True)
+
+  def _delete_image_data(self):
+    """Delete image data.
+
+    Delete filesystem database and index for the image.
+    """
+    self._connect_postgresql_datastore()
+    # Check if image is linked to case
+    image_in_case = self.postgresql.is_image_in_case(self.image_id, self.case)
+    if not image_in_case:
+      log.error(
+          'Image {0:s} does not exist in case {1:s}.'.format(
+              self.image_path, self.case))
+      return
+
+    # Unlink image from case
+    log.info(
+        'Removing image {0:s} from case {1:s}'.format(
+            self.image_path, self.case))
+    self.postgresql.unlink_image_from_case(self.image_id, self.case)
+
+    # Check if image is linked to other cases
+    cases = self.postgresql.get_image_cases(self.image_id)
+    if cases:
+      log.warning(
+          'Not deleting image {0:s} data. Still linked to cases: {1!s}'.format(
+              self.image_path, cases))
+      return
+
+    # Delete the image data
+    index_name = ''.join(('es', self.image_hash))
+    self._connect_opensearch_datastore()
+    index_exists = self.opensearch.index_exists(index_name)
+    if index_exists:
+      log.info('Deleting index {0:s}.'.format(index_name))
+      self.opensearch.delete_index(index_name)
+    else:
+      log.info('Index {0:s} does not exist.'.format(index_name))
+
+    db_name = ''.join(('fs', self.image_hash))
+    log.info('Deleting database {0:s}.'.format(db_name))
+    self.postgresql.delete_filesystem_database(db_name)
+
+    # Remove the image from the database
+    self.postgresql.delete_image(self.image_id)
+    log.info(
+        'Image {0:s} data has been removed from the datastores.'.format(
+            self.image_path))
+
   def _extract_strings(self):
     """String extraction.
 
@@ -417,12 +483,7 @@ class ImageProcessor():
 
   def _index_strings(self):
     """Index the extracted strings."""
-    if self.config:
-      self.opensearch = OpenSearchDataStore(
-          host=self.config.OS_HOST, port=self.config.OS_PORT,
-          url=self.config.OS_URL)
-    else:
-      self.opensearch = OpenSearchDataStore()
+    self._connect_opensearch_datastore()
     index_name = ''.join(('es', self.image_hash))
     index_exists = self.opensearch.index_exists(index_name)
     if index_exists:
@@ -475,12 +536,7 @@ class ImageProcessor():
 
     Parse each filesystem to create a mapping from byte offsets to files.
     """
-    if self.config:
-      self.postgresql = PostgresqlDataStore(
-          host=self.config.PG_HOST, port=self.config.PG_PORT,
-          db_name=self.config.PG_DB_NAME, autocommit=True)
-    else:
-      self.postgresql = PostgresqlDataStore(autocommit=True)
+    self._connect_postgresql_datastore()
     already_parsed = self._already_parsed()
     db_name = ''.join(('fs', self.image_hash))
     if already_parsed:
@@ -565,17 +621,21 @@ class ImageProcessor():
 
   def process_image(self):
     """Process the image."""
-    log.info('* Parsing image: %s', datetime.now())
-    self._parse_filesystems()
-    log.info('Parsing complete.')
+    if self.options.delete:
+      log.info('* Deleting image data: %s', datetime.now())
+      self._delete_image_data()
+    else:
+      log.info('* Parsing image: %s', datetime.now())
+      self._parse_filesystems()
+      log.info('Parsing complete.')
 
-    log.info('* Extracting strings: %s', datetime.now())
-    self._extract_strings()
-    log.info('String extraction complete.')
+      log.info('* Extracting strings: %s', datetime.now())
+      self._extract_strings()
+      log.info('String extraction complete.')
 
-    log.info('* Indexing strings: %s', datetime.now())
-    self._index_strings()
-    log.info('Indexing complete.')
+      log.info('* Indexing strings: %s', datetime.now())
+      self._index_strings()
+      log.info('Indexing complete.')
 
     log.info('* Processing complete: %s', datetime.now())
 
@@ -590,7 +650,8 @@ class ImageProcessorOptions():
   """
 
   def __init__(
-      self, base64=True, gunzip=True, unzip=True, reparse=False, reindex=False):
+      self, base64=True, gunzip=True, unzip=True, reparse=False, reindex=False,
+      delete=False):
     """Initialise image processor options."""
     super().__init__()
     self.base64 = base64
@@ -598,3 +659,4 @@ class ImageProcessorOptions():
     self.unzip = unzip
     self.reparse = reparse
     self.reindex = reindex
+    self.delete = delete

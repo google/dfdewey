@@ -73,6 +73,14 @@ class PostgresqlTest(unittest.TestCase):
       mock_execute.assert_called_once_with(
           'DROP DATABASE {0:s}'.format(db_name))
 
+  def test_delete_image(self):
+    """Test delete image method."""
+    db = self._get_datastore()
+    with mock.patch.object(db.cursor, 'execute') as mock_execute:
+      db.delete_image(TEST_IMAGE_ID)
+      mock_execute.assert_called_once_with(
+          'DELETE FROM images WHERE image_id = \'{0:s}\''.format(TEST_IMAGE_ID))
+
   def test_execute(self):
     """Test execute method."""
     db = self._get_datastore()
@@ -99,6 +107,15 @@ class PostgresqlTest(unittest.TestCase):
       self.assertEqual(len(filenames), 2)
       self.assertEqual(filenames[0], 'test.txt')
       self.assertEqual(filenames[1], 'test.txt:ads')
+
+  def test_get_image_cases(self):
+    """Test get image cases method."""
+    db = self._get_datastore()
+    with mock.patch.object(db.cursor, 'fetchall', return_value=[('test',),
+                                                                ('test2',)]):
+      cases = db.get_image_cases(TEST_IMAGE_ID)
+      self.assertEqual(cases[0], 'test')
+      self.assertEqual(cases[1], 'test2')
 
   def test_get_image_hash(self):
     """Test get image hash method."""
