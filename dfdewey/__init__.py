@@ -17,4 +17,4 @@
 dfDewey is a digital forensics string extraction, indexing, and searching tool.
 """
 
-__version__ = '20211220'
+__version__ = '20220603'
