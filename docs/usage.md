@@ -1,10 +1,7 @@
 # Using dfDewey
 
 ```shell
-usage: dfdewey [-h] [-c CONFIG] [--no_base64] [--no_gzip] [--no_zip]
-               [--reindex] [--highlight] [-s SEARCH]
-               [--search_list SEARCH_LIST]
-               case [image]
+usage: dfdewey [-h] [-c CONFIG] [--no_base64] [--no_gzip] [--no_zip] [--reparse] [--reindex] [--delete] [--highlight] [-s SEARCH] [--search_list SEARCH_LIST] case [image]
 
 positional arguments:
   case                  case ID
@@ -17,7 +14,9 @@ optional arguments:
   --no_base64           don't decode base64
   --no_gzip             don't decompress gzip
   --no_zip              don't decompress zip
+  --reparse             reparse filesystem (will delete existing filesystem mapping)
   --reindex             recreate index (will delete existing index)
+  --delete              delete image (filesystem mapping and index)
   --highlight           highlight search term in results
   -s SEARCH, --search SEARCH
                         search query
@@ -76,6 +75,13 @@ dfdewey testcase /path/to/image.dd
 dfDewey will have bulk_extractor decode base64 data, and decompress gzip / zip
 data by default. These can be disabled by adding the flags `--no_base64`,
 `--no_gzip`, and `--no_zip`.
+
+If an image has already been processed, you can opt to reparse and reindex the
+image (this will first delete the existing data) by adding the flags
+`--reparse` and `--reindex`.
+
+You can also delete the data for a given image from the datastores by adding
+the `--delete` flag.
 
 ## Searching
 

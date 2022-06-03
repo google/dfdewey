@@ -39,14 +39,14 @@ class IndexSearcherTest(unittest.TestCase):
       Test index searcher.
     """
     with mock.patch('psycopg2.connect'), mock.patch(
-        'dfdewey.datastore.postgresql.PostgresqlDataStore.query_single_row'
+        'dfdewey.datastore.postgresql.PostgresqlDataStore._query_single_row'
     ) as mock_query_single_row:
       mock_query_single_row.return_value = (TEST_IMAGE_HASH,)
       index_searcher = IndexSearcher(TEST_CASE, TEST_IMAGE_ID, TEST_IMAGE)
       index_searcher.config = None
     return index_searcher
 
-  @mock.patch('dfdewey.datastore.postgresql.PostgresqlDataStore.query')
+  @mock.patch('dfdewey.datastore.postgresql.PostgresqlDataStore._query')
   def test_get_case_images(self, mock_query):
     """Test get case images method."""
     mock_query.return_value = [(
@@ -61,19 +61,10 @@ class IndexSearcherTest(unittest.TestCase):
     self.assertEqual(index_searcher.images['hash1'], 'image1.dd')
     self.assertEqual(index_searcher.images['hash2'], 'image2.dd')
 
-  @mock.patch('dfdewey.datastore.postgresql.PostgresqlDataStore.query')
-  def test_get_filenames_from_inode(self, mock_query):
-    """Test get filenames from inode method."""
-    index_searcher = self._get_index_searcher()
-    mock_query.return_value = [('test.txt',), ('test.txt:ads',)]
-    filenames = index_searcher._get_filenames_from_inode(42, '/p1')
-    self.assertEqual(len(filenames), 2)
-    self.assertEqual(filenames[0], 'test.txt')
-    self.assertEqual(filenames[1], 'test.txt:ads')
-
-  @mock.patch('dfdewey.utils.index_searcher.IndexSearcher._get_inodes')
+  @mock.patch('dfdewey.datastore.postgresql.PostgresqlDataStore.get_inodes')
   @mock.patch(
-      'dfdewey.utils.index_searcher.IndexSearcher._get_filenames_from_inode')
+      'dfdewey.datastore.postgresql.PostgresqlDataStore.get_filenames_from_inode'
+  )
   @mock.patch(
       'dfdewey.datastore.postgresql.PostgresqlDataStore.switch_database')
   def test_get_filenames_from_offset(
@@ -94,7 +85,7 @@ class IndexSearcherTest(unittest.TestCase):
 
     # Test offset within a file
     mock_get_inodes.reset_mock()
-    mock_get_inodes.return_value = [(0,)]
+    mock_get_inodes.return_value = [0]
     mock_get_filenames_from_inode.return_value = ['adams.txt']
     filenames = index_searcher._get_filenames_from_offset(
         image_path, TEST_IMAGE_HASH, 1133936)
@@ -104,7 +95,7 @@ class IndexSearcherTest(unittest.TestCase):
 
     # Test volume image
     mock_get_inodes.reset_mock()
-    mock_get_inodes.return_value = [(2,)]
+    mock_get_inodes.return_value = [2]
     mock_get_filenames_from_inode.reset_mock()
     mock_get_filenames_from_inode.return_value = []
     image_path = os.path.join(

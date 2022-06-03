@@ -12,8 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Use the official Docker Hub Ubuntu 18.04 base image
-FROM ubuntu:18.04
+# Use the official Docker Hub Ubuntu 20.04 base image
+FROM ubuntu:20.04
 
 # Update the base image
 ENV DEBIAN_FRONTEND=noninteractive

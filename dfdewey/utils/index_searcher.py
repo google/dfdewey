@@ -91,39 +91,11 @@ class IndexSearcher():
 
     if image != 'all':
       self.image = os.path.abspath(self.image)
-      self._get_image_hash()
+      image_hash = self.postgresql.get_image_hash(self.image_id)
+      if image_hash:
+        self.images[image_hash] = self.image
     else:
-      self._get_case_images()
-
-  def _get_case_images(self):
-    """Get all images for the case.
-
-    Returns:
-      A dictionary of the images in the case.
-    """
-    images = self.postgresql.query((
-        'SELECT image_hash, image_path FROM image_case NATURAL JOIN images '
-        'WHERE case_id = \'{0:s}\'').format(self.case))
-    for image_hash, image_path in images:
-      self.images[image_hash] = image_path
-
-  def _get_filenames_from_inode(self, inode, location):
-    """Gets filename(s) from an inode number.
-
-    Args:
-      inode: Inode number of target file
-      location: Partition number
-
-    Returns:
-      Filename(s) of given inode or None
-    """
-    results = self.postgresql.query((
-        'SELECT filename FROM files '
-        'WHERE inum = {0:d} AND part = \'{1:s}\'').format(inode, location))
-    filenames = []
-    for result in results:
-      filenames.append(result[0])
-    return filenames
+      self.images = self.postgresql.get_case_images(self.case)
 
   def _get_filenames_from_offset(self, image_path, image_hash, offset):
     """Gets filename(s) given a byte offset within an image.
@@ -173,14 +145,13 @@ class IndexSearcher():
       except TypeError as e:
         log.error('Error opening image: %s', e)
 
-      inodes = self._get_inodes(
+      inodes = self.postgresql.get_inodes(
           int((offset - partition_offset) / block_size), hit_location)
 
       if inodes:
-        for i in inodes:
-          inode = i[0]
+        for inode in inodes:
           # Account for resident files
-          if (i[0] == 0 and
+          if (inode == 0 and
               filesystem.info.ftype == pytsk3.TSK_FS_TYPE_NTFS_DETECT):
             mft_record_size_offset = 0x40 + partition_offset
             mft_record_size = int.from_bytes(
@@ -192,38 +163,12 @@ class IndexSearcher():
             inode = self._get_ntfs_resident_inode((offset - partition_offset),
                                                   filesystem, mft_record_size)
 
-          inode_filenames = self._get_filenames_from_inode(inode, hit_location)
+          inode_filenames = self.postgresql.get_filenames_from_inode(
+              inode, hit_location)
           filename = '\n'.join(inode_filenames)
           filenames.append('{0:s} ({1:d})'.format(filename, inode))
 
     return filenames
-
-  def _get_image_hash(self):
-    """Get an image hash from the datastore.
-
-    Returns:
-      MD5 hash for the image stored in PostgreSQL.
-    """
-    image_hash = self.postgresql.query_single_row(
-        'SELECT image_hash FROM images WHERE image_id = \'{0:s}\''.format(
-            self.image_id))
-    if image_hash:
-      self.images[image_hash[0]] = self.image
-
-  def _get_inodes(self, block, location):
-    """Gets inode numbers for a block offset.
-
-    Args:
-      block (int): block offset within the image.
-      location (str): Partition location / identifier.
-
-    Returns:
-      Inode number(s) of the given block or None.
-    """
-    inodes = self.postgresql.query(
-        ('SELECT inum FROM blocks '
-         'WHERE block = {0:d} AND part = \'{1:s}\'').format(block, location))
-    return inodes
 
   def _get_ntfs_resident_inode(self, offset, filesystem, mft_record_size):
     """Gets the inode number associated with NTFS $MFT resident data.

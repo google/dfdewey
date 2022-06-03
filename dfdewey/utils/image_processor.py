@@ -290,7 +290,7 @@ class ImageProcessor():
     self.case = case
     self.config = dfdewey_config.load_config(config_file=config_file)
     self.opensearch = None
-    self.image_hash = None
+    self.image_hash = image_id
     self.image_id = image_id
     self.image_path = image_path
     self.options = options
@@ -313,7 +313,7 @@ class ImageProcessor():
 
     image_exists = False
     if not tables_exist:
-      self._initialise_database()
+      self.postgresql.initialise_database()
     else:
       image_exists = self.postgresql.value_exists(
           'images', 'image_id', self.image_id)
@@ -322,39 +322,89 @@ class ImageProcessor():
     # case.
     image_case_exists = False
     if image_exists:
-      image_case = self.postgresql.query_single_row((
-          'SELECT 1 from image_case '
-          'WHERE image_id = \'{0:s}\' AND case_id = \'{1:s}\'').format(
-              self.image_id, self.case))
-      if image_case:
-        image_case_exists = True
+      image_case_exists = self.postgresql.is_image_in_case(
+          self.image_id, self.case)
     else:
-      self.postgresql.execute((
-          'INSERT INTO images (image_id, image_path, image_hash) '
-          'VALUES (\'{0:s}\', \'{1:s}\', \'{2:s}\')').format(
-              self.image_id, self.image_path, self.image_hash))
+      self.postgresql.insert_image(
+          self.image_id, self.image_path, self.image_hash)
 
     if not image_case_exists:
-      self.postgresql.execute((
-          'INSERT INTO image_case (case_id, image_id) '
-          'VALUES (\'{0:s}\', \'{1:s}\')').format(self.case, self.image_id))
+      self.postgresql.link_image_to_case(self.image_id, self.case)
 
     return image_exists
 
-  def _create_filesystem_database(self):
-    """Create a filesystem database for the image."""
-    self.postgresql.execute((
-        'CREATE TABLE blocks (block INTEGER, inum INTEGER, part TEXT, '
-        'PRIMARY KEY (block, inum, part))'))
-    self.postgresql.execute((
-        'CREATE TABLE files (inum INTEGER, filename TEXT, part TEXT, '
-        'PRIMARY KEY (inum, filename, part))'))
+  def _connect_opensearch_datastore(self):
+    """Connect to the Opensearch datastore."""
+    if self.config:
+      self.opensearch = OpenSearchDataStore(
+          host=self.config.OS_HOST, port=self.config.OS_PORT,
+          url=self.config.OS_URL)
+    else:
+      self.opensearch = OpenSearchDataStore()
+
+  def _connect_postgresql_datastore(self):
+    """Connect to the PostgreSQL datastore."""
+    if self.config:
+      self.postgresql = PostgresqlDataStore(
+          host=self.config.PG_HOST, port=self.config.PG_PORT,
+          db_name=self.config.PG_DB_NAME, autocommit=True)
+    else:
+      self.postgresql = PostgresqlDataStore(autocommit=True)
+
+  def _delete_image_data(self):
+    """Delete image data.
+
+    Delete filesystem database and index for the image.
+    """
+    self._connect_postgresql_datastore()
+    # Check if image is linked to case
+    image_in_case = self.postgresql.is_image_in_case(self.image_id, self.case)
+    if not image_in_case:
+      log.error(
+          'Image {0:s} does not exist in case {1:s}.'.format(
+              self.image_path, self.case))
+      return
+
+    # Unlink image from case
+    log.info(
+        'Removing image {0:s} from case {1:s}'.format(
+            self.image_path, self.case))
+    self.postgresql.unlink_image_from_case(self.image_id, self.case)
+
+    # Check if image is linked to other cases
+    cases = self.postgresql.get_image_cases(self.image_id)
+    if cases:
+      log.warning(
+          'Not deleting image {0:s} data. Still linked to cases: {1!s}'.format(
+              self.image_path, cases))
+      return
+
+    # Delete the image data
+    index_name = ''.join(('es', self.image_hash))
+    self._connect_opensearch_datastore()
+    index_exists = self.opensearch.index_exists(index_name)
+    if index_exists:
+      log.info('Deleting index {0:s}.'.format(index_name))
+      self.opensearch.delete_index(index_name)
+    else:
+      log.info('Index {0:s} does not exist.'.format(index_name))
+
+    db_name = ''.join(('fs', self.image_hash))
+    log.info('Deleting database {0:s}.'.format(db_name))
+    self.postgresql.delete_filesystem_database(db_name)
+
+    # Remove the image from the database
+    self.postgresql.delete_image(self.image_id)
+    log.info(
+        'Image {0:s} data has been removed from the datastores.'.format(
+            self.image_path))
 
   def _extract_strings(self):
     """String extraction.
 
     Extract strings from the image using bulk_extractor.
     """
+    self.output_path = tempfile.mkdtemp()
     cmd = [
         'bulk_extractor', '-o', self.output_path, '-x', 'all', '-e', 'wordlist'
     ]
@@ -371,11 +421,9 @@ class ImageProcessor():
 
     log.info('Running bulk_extractor: [%s]', ' '.join(cmd))
     try:
-      output = subprocess.check_output(cmd)
+      subprocess.check_call(cmd)
     except subprocess.CalledProcessError as e:
       raise RuntimeError('String extraction failed.') from e
-    md5_offset = output.index(b'MD5') + 19
-    self.image_hash = output[md5_offset:md5_offset + 32].decode('utf-8')
 
   def _get_volume_details(self, path_spec):
     """Logs volume details for the given path spec.
@@ -435,12 +483,7 @@ class ImageProcessor():
 
   def _index_strings(self):
     """Index the extracted strings."""
-    if self.config:
-      self.opensearch = OpenSearchDataStore(
-          host=self.config.OS_HOST, port=self.config.OS_PORT,
-          url=self.config.OS_URL)
-    else:
-      self.opensearch = OpenSearchDataStore()
+    self._connect_opensearch_datastore()
     index_name = ''.join(('es', self.image_hash))
     index_exists = self.opensearch.index_exists(index_name)
     if index_exists:
@@ -488,40 +531,30 @@ class ImageProcessor():
       records = self.opensearch.import_event(index_name)
       log.info('Indexed %d records...', records)
 
-  def _initialise_database(self):
-    """Initialse the image database."""
-    self.postgresql.execute((
-        'CREATE TABLE images (image_id TEXT PRIMARY KEY, image_path TEXT, '
-        'image_hash TEXT)'))
-
-    self.postgresql.execute((
-        'CREATE TABLE image_case ('
-        'case_id TEXT, image_id TEXT REFERENCES images(image_id), '
-        'PRIMARY KEY (case_id, image_id))'))
-
   def _parse_filesystems(self):
     """Filesystem parsing.
 
     Parse each filesystem to create a mapping from byte offsets to files.
     """
-    if self.config:
-      self.postgresql = PostgresqlDataStore(
-          host=self.config.PG_HOST, port=self.config.PG_PORT,
-          db_name=self.config.PG_DB_NAME, autocommit=True)
-    else:
-      self.postgresql = PostgresqlDataStore(autocommit=True)
-    if self._already_parsed():
+    self._connect_postgresql_datastore()
+    already_parsed = self._already_parsed()
+    db_name = ''.join(('fs', self.image_hash))
+    if already_parsed:
       log.info('Image already parsed: [%s]', self.image_path)
-    else:
-      db_name = ''.join(('fs', self.image_hash))
-      self.postgresql.execute('CREATE DATABASE {0:s}'.format(db_name))
+      if self.options.reparse:
+        log.info('Reparsing.')
+        self.postgresql.delete_filesystem_database(db_name)
+        log.info('Database %s deleted.', db_name)
+        already_parsed = False
+    if not already_parsed:
+      self.postgresql.create_database(db_name)
       if self.config:
         self.postgresql.switch_database(
             host=self.config.PG_HOST, port=self.config.PG_PORT, db_name=db_name)
       else:
         self.postgresql.switch_database(db_name=db_name)
 
-      self._create_filesystem_database()
+      self.postgresql.create_filesystem_database()
 
       # Scan image for volumes
       options = volume_scanner.VolumeScannerOptions()
@@ -588,18 +621,21 @@ class ImageProcessor():
 
   def process_image(self):
     """Process the image."""
-    self.output_path = tempfile.mkdtemp()
-    log.info('* Processing start: %s', datetime.now())
-    self._extract_strings()
-    log.info('String extraction complete.')
+    if self.options.delete:
+      log.info('* Deleting image data: %s', datetime.now())
+      self._delete_image_data()
+    else:
+      log.info('* Parsing image: %s', datetime.now())
+      self._parse_filesystems()
+      log.info('Parsing complete.')
 
-    log.info('* Parsing image: %s', datetime.now())
-    self._parse_filesystems()
-    log.info('Parsing complete.')
+      log.info('* Extracting strings: %s', datetime.now())
+      self._extract_strings()
+      log.info('String extraction complete.')
 
-    log.info('* Indexing strings: %s', datetime.now())
-    self._index_strings()
-    log.info('Indexing complete.')
+      log.info('* Indexing strings: %s', datetime.now())
+      self._index_strings()
+      log.info('Indexing complete.')
 
     log.info('* Processing complete: %s', datetime.now())
 
@@ -613,10 +649,14 @@ class ImageProcessorOptions():
     unzip (bool): decompress zip.
   """
 
-  def __init__(self, base64=True, gunzip=True, unzip=True, reindex=False):
+  def __init__(
+      self, base64=True, gunzip=True, unzip=True, reparse=False, reindex=False,
+      delete=False):
     """Initialise image processor options."""
     super().__init__()
     self.base64 = base64
     self.gunzip = gunzip
     self.unzip = unzip
+    self.reparse = reparse
     self.reindex = reindex
+    self.delete = delete

@@ -100,7 +100,8 @@ def main():
       log.error('Image must be supplied for processing.')
       sys.exit(1)
     image_processor_options = ImageProcessorOptions(
-        not args.no_base64, not args.no_gzip, not args.no_zip, args.reindex)
+        not args.no_base64, not args.no_gzip, not args.no_zip, args.reparse,
+        args.reindex, args.delete)
     image_processor = ImageProcessor(
         args.case, image_id, os.path.abspath(args.image),
         image_processor_options, args.config)
@@ -135,7 +136,14 @@ def parse_args():
   parser.add_argument(
       '--no_zip', help='don\'t decompress zip', action='store_true')
   parser.add_argument(
+      '--reparse',
+      help='reparse filesystem (will delete existing filesystem mapping)',
+      action='store_true')
+  parser.add_argument(
       '--reindex', help='recreate index (will delete existing index)',
+      action='store_true')
+  parser.add_argument(
+      '--delete', help='delete image (filesystem mapping and index)',
       action='store_true')
 
   # Search args
