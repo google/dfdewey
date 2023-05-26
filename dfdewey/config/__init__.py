@@ -14,7 +14,8 @@
 # limitations under the License.
 """DFDewey Config."""
 
-import imp
+import importlib.machinery
+import importlib.util
 import logging
 import os
 
@@ -70,12 +71,16 @@ def load_config(config_file=None):
   if config_file:
     log.debug('Loading config from {0:s}'.format(config_file))
     try:
-      config = imp.load_source('config', config_file)
-    except IOError as e:
+      spec = importlib.util.spec_from_loader(
+          'config', importlib.machinery.SourceFileLoader('config', config_file))
+      config = importlib.util.module_from_spec(spec)
+      spec.loader.exec_module(config)
+    except FileNotFoundError as e:
       log.error(
           'Could not load config file {0:s}: {1!s}'.format(config_file, e))
+      config = None
 
   if not config:
-    log.warn('Config file not loaded. Using default datastore settings.')
+    log.warning('Config file not loaded. Using default datastore settings.')
 
   return config
