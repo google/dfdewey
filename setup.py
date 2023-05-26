@@ -67,7 +67,7 @@ setup(
     ],
     install_requires=requirements,
     extras_require={
-        'dev': ['mock', 'nose', 'yapf', 'coverage']
+        'dev': ['mock', 'pytest', 'yapf', 'coverage']
     },
     entry_points={'console_scripts': ['dfdewey=dfdewey.dfdcli:main']},
     python_requires='>=3.6',

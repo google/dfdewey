@@ -19,5 +19,8 @@ import subprocess
 
 if __name__ == '__main__':
   subprocess.check_call([
-      'nosetests', '-vv', '--with-coverage', '--cover-package=dfdewey', '--exe'
+      'coverage', 'run', '--source=dfdewey', '-m', 'pytest'
+  ])
+  subprocess.check_call([
+      'coverage', 'report'
   ])
