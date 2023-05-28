@@ -140,17 +140,26 @@ class IndexSearcherTest(unittest.TestCase):
     index_searcher.images = {TEST_IMAGE_HASH: TEST_IMAGE}
     current_path = os.path.abspath(os.path.dirname(__file__))
     query_list = os.path.join(
-        current_path, '..', '..', 'test_data', 'wordlist.txt')
+        current_path, '..', '..', 'test_data', 'searchlist.txt')
     mock_search.return_value = {'hits': {'total': {'value': 1}}}
     index_searcher.list_search(query_list)
-    self.assertEqual(mock_search.call_count, 8)
+    self.assertEqual(mock_search.call_count, 5)
     mock_output.assert_called_once()
     self.assertEqual(mock_output.call_args.args[1], TEST_IMAGE)
     self.assertEqual(mock_output.call_args.args[2], TEST_IMAGE_HASH)
     self.assertEqual(mock_output.call_args.args[3], query_list)
 
+    # Test JSON output
+    expected_output = '{"d41d8cd98f00b204e9800998ecf8427e": {"image": "test.dd", "results": {"\\"list\\"": 1, "\\"of\\"": 1, "\\"test\\"": 1, "\\"search\\"": 1, "\\"terms\\"": 1}}}'
+    mock_output.reset_mock()
+    index_searcher.json = True
+    index_searcher.list_search(query_list)
+    mock_output.assert_called_once()
+    self.assertEqual(mock_output.call_args.args[1], expected_output)
+
     # Test no results
     mock_output.reset_mock()
+    index_searcher.json = False
     mock_search.return_value = {'hits': {'total': {'value': 0}}}
     index_searcher.list_search(query_list)
     mock_output.assert_called_once()
@@ -210,6 +219,16 @@ class IndexSearcherTest(unittest.TestCase):
     self.assertEqual(table_output[76:84], '12889600')
     self.assertEqual(table_output[106:110], 'test')
     self.assertEqual(table_output[111:117], 'GZIP-0')
+
+    # Test JSON output
+    expected_output = '{"d41d8cd98f00b204e9800998ecf8427e": {"image": "/usr/local/google/home/jasonsolomon/git/dfdewey/dfdewey/utils/../../test_data/test.dd", "test": [{"Offset": "12889600\\nGZIP-0", "Filename (inode)": "", "String": "test"}]}}'
+    mock_search.reset_mock()
+    mock_output.reset_mock()
+    index_searcher.json = True
+    index_searcher.search('test')
+    mock_search.assert_called_once()
+    output_calls = mock_output.mock_calls
+    self.assertEqual(output_calls[1].args[1], expected_output)
 
   def test_wrap_filenames(self):
     """Test wrap filenames method."""
