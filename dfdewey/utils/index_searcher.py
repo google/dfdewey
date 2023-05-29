@@ -14,6 +14,7 @@
 # limitations under the License.
 """Index searcher."""
 
+import json
 import logging
 import os
 import re
@@ -66,7 +67,7 @@ class _SearchHit():
 class IndexSearcher():
   """Index Searcher class."""
 
-  def __init__(self, case, image_id, image, config_file=None):
+  def __init__(self, case, image_id, image, json=False, config_file=None):
     """Create an index searcher."""
     super().__init__()
     self.case = case
@@ -75,6 +76,7 @@ class IndexSearcher():
     self.image = image
     self.image_id = image_id
     self.images = {}
+    self.json = json
     self.postgresql = None
     self.scanner = None
 
@@ -270,7 +272,11 @@ class IndexSearcher():
     Args:
       query_list (str): path to a text file containing multiple search terms.
     """
+    search_results = {}
     for image_hash, image_path in self.images.items():
+      search_results[image_hash] = {}
+      search_results[image_hash]['image'] = image_path
+      search_results[image_hash]['results'] = {}
       index = ''.join(('es', image_hash))
       with open(query_list, 'r') as search_terms:
         table_data = []
@@ -279,14 +285,18 @@ class IndexSearcher():
           results = self.opensearch.search(index, term)
           hit_count = results['hits']['total']['value']
           if hit_count > 0:
+            search_results[image_hash]['results'][term] = hit_count
             table_data.append({'Search term': term, 'Hits': hit_count})
       if table_data:
         output = tabulate(table_data, headers='keys', tablefmt='simple')
       else:
         output = 'No results.'
-      log.info(
-          'Searched %s (%s) for terms in %s\n\n%s\n', image_path, image_hash,
-          query_list, output)
+      if not self.json:
+        log.info(
+            'Searched %s (%s) for terms in %s\n\n%s\n', image_path, image_hash,
+            query_list, output)
+    if self.json:
+      log.info('%s', json.JSONEncoder().encode(search_results))
 
   def search(self, query, highlight=False):
     """Run a single query.
@@ -295,7 +305,10 @@ class IndexSearcher():
       query (str): query to run.
       highlight (bool): flag to highlight search term in results.
     """
+    search_results = {}
     for image_hash, image_path in self.images.items():
+      search_results[image_hash] = {}
+      search_results[image_hash]['image'] = image_path
       log.info('Searching %s (%s) for "%s"', image_path, image_hash, query)
       index = ''.join(('es', image_hash))
       results = self.opensearch.search(index, query)
@@ -329,7 +342,11 @@ class IndexSearcher():
           hit.data = self._highlight_hit(hit.data, hit_positions)
         hit.data = '\n'.join(hit.data)
         hits.append(hit.copy_to_dict())
-      output = tabulate(hits, headers='keys', tablefmt='simple')
-      log.info(
-          'Returned %d results in %dms.\n\n%s\n', result_count, time_taken,
-          output)
+      search_results[image_hash][query] = hits
+      if not self.json:
+        output = tabulate(hits, headers='keys', tablefmt='simple')
+        log.info(
+            'Returned %d results in %dms.\n\n%s\n', result_count, time_taken,
+            output)
+    if self.json:
+      log.info('%s', json.JSONEncoder().encode(search_results))

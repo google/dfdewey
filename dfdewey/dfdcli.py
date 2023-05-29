@@ -107,7 +107,8 @@ def main():
         image_processor_options, args.config)
     image_processor.process_image()
   else:
-    index_searcher = IndexSearcher(args.case, image_id, args.image, args.config)
+    index_searcher = IndexSearcher(
+        args.case, image_id, args.image, args.json, args.config)
     if args.search:
       index_searcher.search(args.search, args.highlight)
     elif args.search_list:
@@ -150,6 +151,8 @@ def parse_args():
   parser.add_argument(
       '--highlight', help='highlight search term in results',
       action='store_true')
+  parser.add_argument(
+      '--json', help='output results in JSON format', action='store_true')
   parser.add_argument('-s', '--search', help='search query')
   parser.add_argument('--search_list', help='file with search queries')
 
