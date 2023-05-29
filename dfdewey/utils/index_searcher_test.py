@@ -150,7 +150,8 @@ class IndexSearcherTest(unittest.TestCase):
     self.assertEqual(mock_output.call_args.args[3], query_list)
 
     # Test JSON output
-    expected_output = '{"d41d8cd98f00b204e9800998ecf8427e": {"image": "test.dd", "results": {"\\"list\\"": 1, "\\"of\\"": 1, "\\"test\\"": 1, "\\"search\\"": 1, "\\"terms\\"": 1}}}'
+    expected_output = '{"%s": {"image": "%s", "results": {"\\"list\\"": 1, "\\"of\\"": 1, "\\"test\\"": 1, "\\"search\\"": 1, "\\"terms\\"": 1}}}' % (
+        TEST_IMAGE_HASH, TEST_IMAGE)
     mock_output.reset_mock()
     index_searcher.json = True
     index_searcher.list_search(query_list)
@@ -221,7 +222,8 @@ class IndexSearcherTest(unittest.TestCase):
     self.assertEqual(table_output[111:117], 'GZIP-0')
 
     # Test JSON output
-    expected_output = '{"d41d8cd98f00b204e9800998ecf8427e": {"image": "/usr/local/google/home/jasonsolomon/git/dfdewey/dfdewey/utils/../../test_data/test.dd", "test": [{"Offset": "12889600\\nGZIP-0", "Filename (inode)": "", "String": "test"}]}}'
+    expected_output = '{"%s": {"image": "%s", "test": [{"Offset": "12889600\\nGZIP-0", "Filename (inode)": "", "String": "test"}]}}' % (
+        TEST_IMAGE_HASH, image_path)
     mock_search.reset_mock()
     mock_output.reset_mock()
     index_searcher.json = True
