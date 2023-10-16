@@ -169,7 +169,7 @@ class ImageProcessorTest(unittest.TestCase):
     mock_subprocess.assert_called_once_with([
         'bulk_extractor', '-o', '/tmp/tmpxaemz75r', '-x', 'all', '-e',
         'wordlist', '-e', 'base64', '-e', 'gzip', '-e', 'zip', '-S',
-        'strings=YES', '-S', 'word_max=1000000', TEST_IMAGE
+        'strings=1', '-S', 'word_max=1000000', TEST_IMAGE
     ])
 
     # Test options
@@ -180,7 +180,7 @@ class ImageProcessorTest(unittest.TestCase):
     image_processor._extract_strings()
     mock_subprocess.assert_called_once_with([
         'bulk_extractor', '-o', '/tmp/tmpxaemz75r', '-x', 'all', '-e',
-        'wordlist', '-S', 'strings=YES', '-S', 'word_max=1000000', TEST_IMAGE
+        'wordlist', '-S', 'strings=1', '-S', 'word_max=1000000', TEST_IMAGE
     ])
 
     # Test error in processing
