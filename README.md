@@ -20,7 +20,7 @@ sudo apt install -y bulk-extractor
 bulk_extractor can also be downloaded and built from source here:
 https://github.com/simsong/bulk_extractor
 
-Note: bulk_extractor v1.6.0 is recommended (v2.0.0 is not yet supported).
+Note: bulk_extractor v2.0.3 or greater is required.
 
 ### dfVFS
 [dfVFS](https://github.com/log2timeline/dfvfs) is required for image parsing. It

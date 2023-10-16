@@ -415,7 +415,7 @@ class ImageProcessor():
     if self.options.unzip:
       cmd.extend(['-e', 'zip'])
 
-    cmd.extend(['-S', 'strings=YES', '-S', 'word_max=1000000'])
+    cmd.extend(['-S', 'strings=1', '-S', 'word_max=1000000'])
     cmd.append(self.image_path)
 
     log.info('Running bulk_extractor: [%s]', ' '.join(cmd))
